@@ -1,6 +1,8 @@
 .DS_Store
 .env
 /node_modules/
+/coverage/
+/dist/
 
 # React Router
 /.react-router/
