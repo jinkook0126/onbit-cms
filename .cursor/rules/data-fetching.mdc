@@ -1,0 +1,80 @@
+---
+description: 온빛 CMS의 서버 상태 관리, API 호출, 데이터 조회 및 변경 기준
+globs: app/**/*.{ts,tsx}
+alwaysApply: true
+---
+
+# Onbit CMS Data Fetching Standards
+
+## 1. 기본 아키텍처
+
+- 서버 상태 관리는 TanStack Query를 기본으로 사용한다.
+- React Router는 라우팅, URL 관리, 페이지 전환 및 라우트 접근 제어를 담당한다.
+- 데이터 조회와 변경 로직은 React Router의 loader/action보다 TanStack Query를 우선한다.
+- 동일한 서버 데이터를 React Router와 TanStack Query에서 중복 관리하지 않는다.
+- 기존 프로젝트에 구성된 QueryClient와 API 클라이언트를 재사용한다.
+
+## 2. 데이터 조회
+
+- 일반적인 서버 데이터 조회에는 `useQuery`를 사용한다.
+- Suspense 기반 조회가 필요한 경우 `useSuspenseQuery`를 검토한다.
+- Query Key는 일관된 규칙으로 관리한다.
+- Query Key는 도메인별 Factory 패턴을 사용한다.
+- API 호출 로직은 컴포넌트에서 직접 작성하지 않는다.
+- 재사용 가능한 조회 로직은 Custom Hook으로 분리한다.
+
+## 3. 데이터 사전 로딩
+
+- 일반적인 사전 로딩에는 `queryClient.prefetchQuery`를 사용한다.
+- Hover, Focus, 클릭 전 데이터 준비 등 사용자 인터랙션에 따른 사전 로딩을 지원한다.
+- Suspense 기반 컴포넌트 트리에서 사전 로딩이 필요한 경우 `usePrefetchQuery`를 검토한다.
+- 설치된 TanStack Query 버전에서 지원하는 API인지 확인한 후 사용한다.
+- 불필요한 중복 요청과 과도한 사전 로딩을 방지한다.
+
+## 4. 데이터 변경
+
+- 데이터 생성, 수정, 삭제에는 TanStack Query의 `useMutation`을 기본으로 사용한다.
+- React Router의 `action`을 새로운 데이터 변경 로직에 기본적으로 사용하지 않는다.
+- Mutation 성공 후 관련 Query Key를 기준으로 캐시를 갱신한다.
+- 상황에 따라 `invalidateQueries` 또는 `setQueryData`를 사용한다.
+- Optimistic Update는 사용자 경험상 필요하고 롤백 처리가 가능한 경우에 적용한다.
+- Mutation의 Loading, Success, Error 상태를 적절히 처리한다.
+- 중복 제출 및 연속 요청으로 인한 데이터 정합성 문제를 방지한다.
+
+## 5. React Router와의 연동
+
+- React Router의 loader는 라우트 진입 시 데이터 준비가 필요한 경우에만 사용한다.
+- loader에서 데이터를 직접 별도로 관리하기보다 QueryClient의 `ensureQueryData` 등을 활용해 Query 캐시와 연동한다.
+- React Router의 action은 브라우저 기본 Form 제출, 라우터의 redirect 등 라우팅 기능과 밀접하게 연관된 경우에만 제한적으로 사용한다.
+- 동일한 데이터에 대해 loader와 useQuery가 서로 다른 요청 및 캐시를 관리하지 않도록 한다.
+- 페이지 전환 시 불필요한 API 재요청을 방지한다.
+
+## 6. API 계층
+
+- API 요청은 공통 API Client를 통해 처리한다.
+- 인증, 공통 헤더, 에러 처리 등은 API Client에서 일관되게 관리한다.
+- API 함수는 화면 컴포넌트와 분리한다.
+- API 요청 및 응답 타입을 명확하게 정의한다.
+- API 에러는 공통 처리 기준을 따르되 화면별 사용자 피드백이 필요한 경우 적절히 처리한다.
+
+## 7. 상태 관리 원칙
+
+- 서버에서 가져온 데이터는 TanStack Query로 관리한다.
+- 모달 열림 여부, 선택 상태, 입력 중인 값 등 일시적인 UI 상태는 React State 또는 기존 전역 상태 관리 도구를 사용한다.
+- 서버 상태를 불필요하게 Redux나 별도 전역 상태에 복제하지 않는다.
+- URL로 공유하거나 새로고침 후에도 유지되어야 하는 검색 조건과 페이지네이션은 URL Search Params를 우선 검토한다.
+
+## 8. 구현 시 주의사항
+
+- 컴포넌트 내부에서 직접 fetch를 호출하지 않는다.
+- useEffect를 이용한 수동 데이터 조회를 지양한다.
+- Query Key를 임의의 문자열로 중복 작성하지 않는다.
+- 기존 Query 설정의 staleTime, gcTime, retry 정책을 우선 따른다.
+- API 요청과 캐시 갱신 로직을 컴포넌트에 과도하게 집중시키지 않는다.
+- 새로운 데이터 패턴을 도입하기 전에 기존 프로젝트 구조를 확인한다.
+
+## 9. 현재 구현 상태 (임의 구성 금지)
+
+- TanStack Query, QueryClient, 공통 API Client, 전역 상태 관리 도구는 아직 설치/구성되지 않았다. 필요해지면 임의로 추가하지 않고, 설치와 구성 방식(QueryClient 생성 위치, 기본 staleTime/gcTime/retry, API Client 구조)을 사용자에게 확인한 후 도입한다.
+- 프로젝트는 React Router Framework 모드 SSR(`react-router.config.ts`의 `ssr: true`)로 동작한다. QueryClient 구성 시 이를 고려한다.
+- `app/routes/login.tsx`는 브라우저 기본 Form 제출과 redirect가 필요한 인증 흐름이므로 React Router `action`을 사용한다(5장의 제한적 사용 사례). 인증 API는 아직 연결되지 않았다.

@@ -105,6 +105,7 @@ TDS 문서에는 공식 radius 토큰이 없고, 측정값만 있다(작은 surf
 - Dashboard, Data Table: 최대 폭을 두지 않고 가용 공간을 최대한 활용한다.
 - Form: 최대 폭 720px(`max-w-180`). Detail: 최대 폭 960px(`max-w-240`). 가독성과 작업 집중도를 우선한다. 이 값은 공통 레이아웃에서 사용하고 페이지마다 다르게 정하지 않는다.
 - 모바일에서 테이블은 가로 스크롤(`overflow-x-auto`) 또는 적절한 대체 UI를 제공한다.
+- 인증 화면(로그인 등): Desktop(`lg:`)에서 좌우 2분할. 왼쪽 브랜드 영역은 `bg-primary` 단색 + `text-primary-foreground`(5.17:1)로 서비스명, 소개 문구, 저작권을 둔다. 오른쪽은 `bg-background`에 폼을 두고 폼 폭은 Form 정책(`max-w-180`)을 따른다. `lg` 미만에서는 브랜드 영역을 숨기고 폼 위에 서비스명을 표시한다. 그라데이션, 빛 번짐 등 장식 효과는 쓰지 않는다.
 
 ### Font
 
@@ -208,3 +209,5 @@ TDS 문서에는 공식 radius 토큰이 없고, 측정값만 있다(작은 surf
 - **다크 모드**: `.dark` 토큰은 shadcn 기본값이며 CMS 팔레트와 대비가 검증되지 않았다(`--primary-hover`, `--destructive-foreground`만 호환용으로 추가).
 - **Chart, Sidebar 배경**: `--chart-1~5`와 `--sidebar`는 shadcn 기본 neutral 값이다. Sidebar의 primary/accent/border/ring은 CMS 토큰을 참조한다.
 - **Button loading**: loading 상태 API는 아직 구현되지 않았다.
+- **타이포그래피 스케일**: CMS 제목 크기 정책이 없다. 인증 화면은 TDS 문서 값을 임시로 사용한다. 페이지 제목은 H3(24px/600/36px, `text-2xl leading-9 font-semibold`), 브랜드 영역 문구는 H2(30px/600/45px, `text-3xl leading-11.25 font-semibold`).
+- **로고**: 온빛 로고/심볼 자산이 없다. 인증 화면은 lucide `SunIcon` + "온빛 CMS" 텍스트로 임시 대체한다.
