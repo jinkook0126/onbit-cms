@@ -1,0 +1,210 @@
+---
+description: 온빛 CMS UI(화면, 컴포넌트, 스타일) 작업 시 Toss Design System을 기준으로 shadcn/ui를 커스터마이징하고, 확정된 CMS 정책(버튼, 레이아웃, 접근성)과 디자인 토큰 규칙을 적용한다.
+globs: app/**/*.tsx,app/**/*.css
+alwaysApply: false
+---
+
+# 디자인 시스템 (Toss Design System + shadcn/ui)
+
+원본 문서: @docs/design/toss-design-system.md
+
+## 역할 범위
+
+- 이 규칙은 **시각 디자인과 UI 구성**(디자인 토큰, 타이포그래피, 간격, radius, 컴포넌트 상태, 레이아웃, 접근성, CMS UX, UI 문구)만 다룬다.
+- TypeScript, ESLint, Prettier, import 순서 등 코드 품질은 `eslint.config.js`, `prettier.config.js`, 코딩 표준 규칙이 담당한다. 이 규칙에서 재정의하지 않는다.
+- 원본 문서는 수정하지 않는다. 값이 필요하면 원본의 frontmatter와 본문에서 직접 확인한다.
+
+## 디자인 전략과 우선순위
+
+- **Toss Design System = 디자인 기준**, **shadcn/ui = 구현 기반**이다. shadcn/ui 기본 디자인을 그대로 쓰지 않고 TDS 기준으로 커스터마이징한다.
+- 온빛 CMS는 **Desktop-first 관리자 시스템**이다. TDS 원칙을 CMS 목적에 맞게 적용하고, 토스 제품 화면을 그대로 복제하지 않는다.
+- 일관성과 사용성을 우선하고, 불필요한 시각적 장식을 쓰지 않는다.
+- 우선순위: 1) TDS 디자인 원칙 2) CMS 공통 디자인 토큰(`app/app.css`) 3) CMS에서 커스터마이징한 shadcn/ui(`app/components/ui/`) 4) 페이지별 UI.
+- **아래 "CMS 확정 정책"의 수치는 TDS 문서의 수치보다 우선한다.** TDS 문서 값과 다를 때는 확정 정책을 따른다.
+
+## 작업 절차
+
+1. 구현 전에 원본 문서의 관련 섹션과 이 규칙의 확정 정책을 확인한다.
+2. 필요한 컴포넌트는 아래 "컴포넌트 탐색 및 확장" 순서대로 찾고, 새 스타일을 추가하기 전에 기존 토큰과 variant의 확장 가능성을 먼저 검토한다.
+3. 새 색상 조합은 구현 전에 WCAG 대비율을 계산해 검증한다.
+4. 문서, 확정 정책, 기존 구현이 충돌하면 임의로 판단하지 않는다. 근거(문서 섹션, 정책 항목, 코드 위치)를 제시하고 사용자에게 확인한다.
+5. 디자인 토큰이나 공통 컴포넌트를 변경할 때는 영향을 받는 컴포넌트와 페이지를 검색해 함께 검토한다.
+
+## 컴포넌트 탐색 및 확장
+
+필요한 UI 컴포넌트는 다음 순서로 찾고, 앞 단계에서 해결되면 다음 단계로 넘어가지 않는다.
+
+1. **기존 컴포넌트 탐색**: `app/components/ui/`와 `app/components/`, 해당 기능 영역의 컴포넌트를 먼저 검색하고 조합이나 variant 확장으로 해결한다.
+2. **shadcn/ui 추가**: 기존 컴포넌트로 구현할 수 없으면 `npx shadcn@latest add <name>`으로 추가하고, `app/components/ui/`에서 한 번만 CMS 정책에 맞게 커스터마이징한다. 기존 파일(특히 `button.tsx`) 덮어쓰기 프롬프트에는 동의하지 않는다. 추가 직후 `npm run lint:fix`, `npm run format`을 순서대로 실행해 프로젝트 코드 스타일로 맞춘다(`app/components/ui/`도 ESLint, Prettier 검사 대상이다).
+3. **직접 구현**: shadcn/ui에 없는 컴포넌트는 직접 구현할 수 있다. 상호작용 요소는 `radix-ui` 프리미티브를 기반으로 해 접근성과 키보드 조작을 확보한다.
+4. **외부 라이브러리 추가**: 위 방법으로 불가능할 때만 검토한다. 추가 전에 기존 의존성으로 가능한지 확인하고, 추가 시 이유를 사용자에게 설명한다.
+   - 현재 UI 관련 의존성: `radix-ui`(프리미티브 전체), `lucide-react`(아이콘), `class-variance-authority`(variant), `cn`(클래스 병합), `tw-animate-css`(애니메이션), `pretendard`(폰트).
+
+새로 추가하거나 직접 구현하는 모든 컴포넌트에 적용한다.
+
+- TDS 원칙과 온빛 CMS 디자인 토큰을 준수한다. 기존 색상, 타이포그래피, 간격, radius, interaction 규칙(Button 정책, `~/lib/styles`의 `focusRing`/`invalidState`/`fieldBase`)을 재사용하고 임의의 디자인 값을 만들지 않는다.
+- 기존 shadcn/ui와 Radix의 접근성, 키보드 인터랙션, focus 관리를 유지한다. 직접 구현 시에도 동일한 수준(키보드 조작, ARIA 속성, `focus-visible` 표시)을 갖춘다.
+- 정책에 없는 값이 필요하면 임의로 정하지 않고 사용자에게 확인하거나, 사용 시 "TDS 확장"/"CMS 로컬 확장"임을 명시한다.
+
+배치 기준:
+
+- **여러 화면에서 반복 사용될 수 있는 컴포넌트**: `app/components/ui/`에 공통 컴포넌트로 둔다.
+- **특정 화면이나 기능에서만 쓰는 컴포넌트**: 해당 기능 또는 화면 영역(해당 라우트 모듈 근처 등)에 둔다. 다른 화면에서도 필요해지면 그때 `app/components/ui/`로 옮긴다.
+
+## CMS 확정 정책
+
+### Button
+
+TDS Mobile 버튼 규격(32/38/48/56px)을 그대로 쓰지 않고 다음 높이를 사용한다.
+
+| 크기 | 높이 | Tailwind |
+|---|---|---|
+| Small | 32px | `h-8` |
+| Default | 36px | `h-9` |
+| Large | 40px | `h-10` |
+| Primary Action (페이지 주요 동작) | 40px | `h-10` (Large와 동일) |
+
+- 구현: `app/components/ui/button.tsx`의 size `sm`/`default`/`lg`(아이콘은 `icon-sm`/`icon`/`icon-lg`). Primary Action은 `size="lg"`를 사용하며 별도 size를 만들지 않는다. `xs`/`icon-xs`(24px)는 기존 API 호환용이며 정책 규격 밖이다.
+- **Hover**: 색상을 변경한다. Primary는 `--primary-hover`(`#1d4ed8`, `hover:bg-primary-hover`). 다른 variant는 variant별로 조정한다.
+- **Ghost**: 기본 배경 투명, hover 시 `bg-muted`, active 시 `scale(0.96)`.
+- **Link**: 배경 변화 없음, hover 시 밑줄, focus 시 명확한 focus ring.
+- **Active**: `scale(0.96)`(`motion-safe:active:scale-[0.96]`). reduced-motion 환경에서는 scale을 적용하지 않는다.
+- **Focus**: `focus-visible:ring-2 ring-ring ring-offset-2`. ring은 `--ring`(= primary, 흰 배경 대비 5.17:1)을 투명도 없이 사용한다. destructive는 `ring-destructive`.
+- **Disabled**: `opacity-50` + `pointer-events-none`. WCAG 대비 기준은 비활성 요소에 적용되지 않는다.
+- **Transition**: 150ms(`duration-150`). TDS에 검증된 motion 토큰이 없으므로 CMS 로컬 확장 값이다.
+- **Destructive**: 채움형(`bg-destructive text-destructive-foreground`), hover는 `color-mix(destructive, black 10%)`. shadcn 기본 연한 배경형은 대비 미달(4.13:1)이라 사용하지 않는다.
+- **Loading**: 버튼 폭을 유지한다(TDS 규칙). 아직 Button에 loading API는 없다.
+
+### Border Radius (CMS 자체 정책)
+
+TDS 문서에는 공식 radius 토큰이 없고, 측정값만 있다(작은 surface 4/6px, TDS 버튼 8/10/14/16px, 마케팅 버튼 7px). 아래는 온빛 CMS 자체 정책이며 TDS 값이 아니다.
+
+| 대상 | radius | Tailwind | 비고 |
+|---|---|---|---|
+| Button, Input, Select | 8px | `rounded-lg` | TDS small 버튼 측정값(8px)과 일치 |
+| Card | 12px | `rounded-xl` | TDS 문서에 Card 값 없음 |
+| Dialog, Sheet | 16px | `rounded-2xl` | TDS 문서에 해당 값 없음 |
+| Badge | pill | `rounded-full` | TDS 문서에 Badge radius 값 없음 |
+
+- 토큰: `--radius: 0.5rem`, `--radius-sm` 4px, `--radius-md` 6px, `--radius-lg` 8px, `--radius-xl` 12px, `--radius-2xl` 16px(`app/app.css` `@theme inline`).
+- shadcn 컴포넌트 추가 시 radius 클래스가 위 표와 다르면 `app/components/ui/`에서 위 표에 맞춘다.
+
+### Layout
+
+- Breakpoint는 Tailwind v4 기본값과 일치하므로 커스텀 breakpoint를 추가하지 않는다.
+
+| 구분 | 범위 | Tailwind |
+|---|---|---|
+| Mobile | 768px 미만 | 접두사 없음 |
+| Tablet | 768px 이상 | `md:` |
+| Desktop | 1024px 이상 | `lg:` |
+| Wide Desktop | 1280px 이상 | `xl:` |
+
+- Sidebar: 기본 240px(`15rem`), 접힘 64px(`4rem`). shadcn Sidebar의 기본값(16rem / 3rem)과 다르므로 도입 시 너비 상수를 변경한다.
+- 페이지 좌우 padding: 24~32px(`px-6` ~ `px-8`).
+- Dashboard, Data Table: 최대 폭을 두지 않고 가용 공간을 최대한 활용한다.
+- Form: 최대 폭 720px(`max-w-180`). Detail: 최대 폭 960px(`max-w-240`). 가독성과 작업 집중도를 우선한다. 이 값은 공통 레이아웃에서 사용하고 페이지마다 다르게 정하지 않는다.
+- 모바일에서 테이블은 가로 스크롤(`overflow-x-auto`) 또는 적절한 대체 UI를 제공한다.
+
+### Font
+
+- 온빛 CMS 기본 폰트는 **Pretendard Variable**(`pretendard` 패키지, OFL-1.1)이다. TDS 문서가 Toss Product Sans의 Hangul 대체 폰트로 측정한 폰트이며, 한글, 숫자, 영문을 모두 포함한다.
+- `app/app.css`에서 `pretendardvariable-dynamic-subset.css`를 import하고 `--font-sans`로 지정한다. 다른 폰트를 페이지별로 추가하지 않는다.
+- Pretendard는 대체 폰트이며 Toss Product Sans라고 표기하지 않는다. Toss Product Sans는 재배포 권리가 확인되지 않아 사용하지 않는다.
+
+### Accessibility (WCAG 2.2 AA)
+
+- 대비 기준: 일반 텍스트 4.5:1 이상, 큰 텍스트 3:1 이상, UI 구성 요소 경계와 그래픽 3:1 이상을 목표로 한다.
+- TDS `#3182f6`(blue500) 배경 + 흰색 텍스트(3.71:1)는 일반 크기 텍스트에 사용하지 않는다. blue500은 브랜드 및 장식 요소에 사용한다.
+- 흰색 텍스트 버튼은 CMS primary `#2563eb`(5.17:1) / hover `#1d4ed8`(6.70:1)를 사용한다. TDS blue600 `#2272eb`(4.49:1)는 기준 미달이다.
+- 일반 텍스트에 TDS grey500 `#8b95a1`(3.04:1), red600 `#e42939`(4.49:1)를 쓰지 않는다.
+- `text-muted-foreground`는 background/card(흰 배경, 4.62:1) 위에서만 일반 텍스트로 쓴다. `bg-muted` 위에서는 4.19:1로 미달이므로 `text-foreground`를 쓴다.
+- 입력 필드, 체크박스 등 컴포넌트를 식별하는 데 필요한 경계는 3:1 이상을 목표로 한다(흰 배경 기준 `#8b95a1` 3.04:1 이상). 장식용 구분선(`border-border`)은 예외다.
+- 새 색상 조합은 구현 전에 대비율을 계산해 검증한다.
+- 키보드만으로 모든 기능을 사용할 수 있어야 한다. shadcn/Radix의 키보드 조작, ARIA 속성, focus 관리를 훼손하지 않는다.
+
+## 디자인 토큰
+
+- 관리 대상: background, foreground, primary, secondary, muted, accent, destructive, border, input, ring, card, popover, sidebar, chart (각 `-foreground` 짝 포함). CMS 추가 토큰: `primary-hover`, `destructive-foreground`.
+- 라이트 모드 초기 팔레트(CMS 확정값, `:root`). 대비는 흰 배경 기준이다.
+
+| 토큰 | 값 | 대비 / 비고 |
+|---|---|---|
+| `--background` | `#ffffff` | card, popover도 동일 값 참조 |
+| `--foreground` | `#191f28` | 16.56:1 (muted 위 15.02:1) |
+| `--primary` / `--primary-foreground` | `#2563eb` / `#ffffff` | 5.17:1 |
+| `--primary-hover` | `#1d4ed8` | 흰 글자 6.70:1 |
+| `--muted` | `#f2f4f6` | secondary, accent도 동일 값 참조 |
+| `--muted-foreground` | `#6b7684` | 4.62:1, muted 위 4.19:1(미달) |
+| `--border` | `#e5e8eb` | 1.23:1, 장식용 구분선 전용 |
+| `--input` | `#8b95a1` | 3.04:1, 입력 경계 3:1 충족 |
+| `--destructive` / `--destructive-foreground` | `#dc2626` / `#ffffff` | 텍스트 4.83:1, 흰 글자 4.83:1 |
+| `--ring` | `var(--primary)` | 5.17:1 |
+
+- CMS 팔레트(`#2563eb`, `#1d4ed8`, `#dc2626`)는 TDS 스케일에 없는 CMS 자체 값이며 TDS 문서 값보다 우선한다.
+- 기존 shadcn/Tailwind v4 방식대로 `app/app.css`에서 관리한다. 값은 `:root`(라이트)와 `.dark`(다크)에 정의하고 `@theme inline`에서 `--color-*`로 연결한다. 새 토큰도 이 세 곳을 함께 수정한다. `tailwind.config.js`를 만들지 않는다.
+- 컴포넌트에서는 `bg-primary`, `text-muted-foreground`, `border-border` 같은 토큰 유틸리티를 쓴다. hex/oklch 값이나 `bg-[#...]` 같은 임의 색상을 하드코딩하지 않는다.
+- 간격과 radius도 Tailwind 스케일과 `--radius` 계열 토큰을 쓰고, 임의 값(`p-[13px]` 등)을 지양한다.
+
+## 컴포넌트 커스터마이징
+
+- 버튼과 공통 컴포넌트 스타일은 `app/components/ui/`에서 중앙 관리한다. 페이지에서 `className`으로 색상, radius, 타이포그래피, 높이를 덮어쓰지 않는다.
+- variant는 CVA(`class-variance-authority`)로 관리하고, 클래스 병합은 `cn`(`~/lib/utils`)을 사용한다.
+- 공통 상태 스타일은 `~/lib/styles`의 상수를 사용하고 컴포넌트마다 다시 작성하지 않는다.
+  - `focusRing`: 모든 상호작용 요소의 키보드 focus(`ring-2 ring-ring ring-offset-2`).
+  - `invalidState`: `aria-invalid="true"`일 때 destructive 테두리와 focus ring.
+  - `fieldBase`: Input, Textarea, Select 트리거의 외형(`border-input`, `rounded-lg`), hover(`border-muted-foreground`), focus, read-only/disabled(`bg-muted`), error.
+- 구축된 공통 컴포넌트 규격:
+
+| 컴포넌트 | 규격 |
+|---|---|
+| Input | 높이 36px(`h-9`), Button default와 동일 |
+| Select 트리거 | `size="default"` 36px, `size="sm"` 32px |
+| Textarea | 최소 높이 80px(`min-h-20`), 내용에 따라 자동 확장 |
+| Checkbox | 16px, radius 4px(`rounded-sm`), 터치 영역은 `after:` 확장 |
+| Switch | shadcn 기본 크기, checked hover `bg-primary-hover` |
+| Badge | pill(`rounded-full`), variant `default`/`secondary`/`destructive`/`outline`. 상태 표시 전용이며 hover/link variant를 두지 않는다 |
+| Card | radius 12px(`rounded-xl`), 테두리 `ring-border` |
+| Dialog | radius 16px(`rounded-2xl`), 닫기 버튼 Ghost `icon-sm` |
+| Sheet | 화면 안쪽 모서리만 radius 16px(side에 따라 `rounded-l-2xl` 등) |
+| Tooltip | 반전 색상(`bg-foreground text-background`), `TooltipProvider`는 `app/root.tsx`에 1회 배치됨 |
+
+- Select 목록, Sheet의 `shadow-md`/`shadow-lg`는 TDS에 검증된 shadow 토큰이 없는 상태의 shadcn 기본값이며 "TDS 확장"이다.
+- 접근성 텍스트(닫기 버튼의 `sr-only` 등)는 한국어로 작성한다.
+- 반복되는 UI 패턴은 공통 컴포넌트로 추상화한다. 기존 컴포넌트를 복제한 유사 컴포넌트를 만들지 않는다.
+- 공통 디자인 기준 대상: Button, Input, Textarea, Select, Checkbox, Radio Group, Switch, Badge, Card, Dialog, Sheet, Dropdown Menu, Popover, Tooltip, Table, Tabs, Calendar, Sidebar, Breadcrumb, Pagination, Form.
+- 각 컴포넌트는 default, hover, focus(`focus-visible`), active, disabled, loading, error 상태를 고려한다. 의미 없는 상태는 생략할 수 있지만 focus와 disabled는 생략하지 않는다.
+
+## CMS UX 기준
+
+- 정보 밀도와 가독성의 균형을 맞추고, 데이터 탐색과 조작을 빠르게 할 수 있게 한다.
+- 검색과 필터 UI는 모든 목록 화면에서 같은 구성과 위치를 사용한다.
+- 테이블과 폼은 사용성을 우선한다. 폼은 label, help text, error text를 갖춘다.
+- 로딩, 빈 상태, 오류, 성공 등 상태를 명확히 표시한다.
+- 페이지 이동과 네비게이션(Sidebar, Breadcrumb)을 일관되고 예측 가능하게 구성한다.
+- 삭제 등 중요한 작업은 실행 전 확인을 받고, 실행 후 결과를 피드백한다.
+
+## 금지 사항
+
+- 페이지마다 다른 디자인 체계나 임의의 디자인 규칙을 만들지 않는다.
+- 같은 역할의 컴포넌트에 서로 다른 스타일을 적용하지 않는다.
+- 디자인 토큰을 무시한 임의의 색상과 간격을 쓰지 않는다.
+- shadcn/ui 기본 컴포넌트를 페이지마다 직접 수정하지 않는다.
+- 기존 컴포넌트의 접근성과 기능을 훼손하지 않는다.
+
+## TDS 문서 참고 규칙 (확정 정책이 없는 영역에 적용)
+
+- **Surface 분리**: TDS Mobile(제품 UI)과 `toss.im` 마케팅 웹 값을 섞거나 평균 내지 않는다. 예: radius 16px과 7px을 합치지 않는다.
+- **색상 팔레트**: CMS 토큰에 없는 색(상태 색상, 차트 등)이 필요하면 TDS의 grey/blue/red/orange/yellow/green/teal/purple 50~900 스케일을 참고하되, 먼저 토큰으로 추가하고 대비를 검증한다. 로고 브랜드 블루로 UI primary를 대체하지 않는다.
+- **타이포그래피**: TDS 권장은 Toss Product Sans(재배포 권리 미확인), 대체 폰트 Latin IBM Plex Sans / Hangul Pretendard Variable, 안전 기본값 Noto Sans KR / Noto Sans. 대체 폰트를 Toss Product Sans라고 표기하지 않는다. Tossface는 UI 기본 폰트로 쓰지 않는다.
+- **간격**: 간격 클러스터 4, 6, 8, 16, 24, 32px(공식 TDS 토큰이 아닌 측정값). Tailwind `1`, `1.5`, `2`, `4`, `6`, `8`에 해당한다.
+- **Elevation**: 검증된 shadow 토큰이 없다. 평면 색상 레이어링을 기본으로 하고, 임의 값은 로컬 확장으로 명시한다. 기다릴 것이 없는 곳에 로딩 애니메이션을 넣지 않는다.
+- **컴포넌트 상태**: Text Field는 focus/error/disabled/read-only와 label, help text, error text를 갖춘다. Badge는 상태 표시용이며 클릭 가능한 요소로 만들지 않는다.
+- **검증 범위 밖 컴포넌트**: TDS 문서가 수치를 측정한 컴포넌트는 Button, TextField, Badge, Agreement 4개뿐이다. 나머지(Dialog, Table, Tabs, Card 등)는 TDS 값을 지어내지 않고, shadcn 컴포넌트를 쓰되 "TDS 확장"임을 명시한다.
+- **UI 문구**: 짧고 직접적으로 쓰고, 결과와 다음 행동을 명확히 적는다. 전문 용어, 설명 없는 약어, 모호한 안심 문구를 쓰지 않는다. 비용이나 노력을 요구하기 전에 가치를 먼저 보여준다.
+
+## 미적용 및 미확정 항목 (임의 해결 금지)
+
+- **다크 모드**: `.dark` 토큰은 shadcn 기본값이며 CMS 팔레트와 대비가 검증되지 않았다(`--primary-hover`, `--destructive-foreground`만 호환용으로 추가).
+- **Chart, Sidebar 배경**: `--chart-1~5`와 `--sidebar`는 shadcn 기본 neutral 값이다. Sidebar의 primary/accent/border/ring은 CMS 토큰을 참조한다.
+- **Button loading**: loading 상태 API는 아직 구현되지 않았다.

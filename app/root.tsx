@@ -7,6 +7,8 @@ import {
   ScrollRestoration,
 } from 'react-router';
 
+import { TooltipProvider } from '~/components/ui/tooltip';
+
 import type { JSX, ReactNode } from 'react';
 import type { Route } from './+types/root';
 import './app.css';
@@ -25,7 +27,7 @@ export function Layout({ children }: LayoutProps): JSX.Element {
         <Links />
       </head>
       <body>
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

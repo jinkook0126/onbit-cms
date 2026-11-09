@@ -17,7 +17,6 @@ export default defineConfig(
     '.react-router/',
     'coverage/',
     'public/',
-    'app/components/ui/',
     '.agents/',
   ]),
 
@@ -158,6 +157,14 @@ export default defineConfig(
   {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+
+  // shadcn/ui 컴포넌트는 Props를 ComponentProps로 명시하고 반환 타입은 추론에 맡기는 관례를 따른다.
+  {
+    files: ['app/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+    },
   },
 
   eslintConfigPrettier,

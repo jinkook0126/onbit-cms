@@ -5,5 +5,5 @@ dist/
 coverage/
 public/
 package-lock.json
-app/components/ui/
 .agents/
+docs/design/
