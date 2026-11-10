@@ -1,3 +1,5 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   isRouteErrorResponse,
   Links,
@@ -8,6 +10,7 @@ import {
 } from 'react-router';
 
 import { TooltipProvider } from '~/components/ui/tooltip';
+import { getQueryClient } from '~/lib/queryClient';
 
 import type { JSX, ReactNode } from 'react';
 import type { Route } from './+types/root';
@@ -18,6 +21,8 @@ type LayoutProps = {
 };
 
 export function Layout({ children }: LayoutProps): JSX.Element {
+  const [queryClient] = useState(getQueryClient);
+
   return (
     <html lang="en">
       <head>
@@ -27,7 +32,9 @@ export function Layout({ children }: LayoutProps): JSX.Element {
         <Links />
       </head>
       <body>
-        <TooltipProvider>{children}</TooltipProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>{children}</TooltipProvider>
+        </QueryClientProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

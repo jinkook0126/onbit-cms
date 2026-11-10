@@ -1,7 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// 온빛 CMS 멀티테넌트 회원 스키마.
+// 비밀번호는 저장하지 않는다. User.id는 Supabase Auth 사용자 id와 같다.
+//
+// Prisma 스키마로 표현할 수 없는 불변 조건은 첫 마이그레이션 SQL에서 강제한다.
+// 1. role이 SUPER_ADMIN이면 company_id는 NULL이다.
+// 2. role이 COMPANY_ADMIN 또는 EMPLOYEE이면 company_id는 NOT NULL이다.
+// 3. login_id는 앞뒤 공백을 제거하고 소문자로 정규화한 값만 저장한다.
+// 4. users.id는 auth.users.id를 참조한다.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +14,45 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  EMPLOYEE
+
+  @@map("user_role")
+}
+
+/// 회사. 이후 고객 데이터와 업무 데이터는 이 레코드에 소속된다.
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users User[]
+
+  @@map("companies")
+}
+
+/// CMS 회원. 인증 자격은 Supabase Auth가 관리하고, 이 테이블은 소속과 권한만 가진다.
+model User {
+  /// Supabase Auth 사용자 id. 애플리케이션에서 넣으며 자동 생성하지 않는다.
+  id                 String   @id @db.Uuid
+  /// 로그인 아이디. 이메일 로컬 파트 최대 길이(64)를 따른다.
+  loginId            String   @unique @map("login_id") @db.VarChar(64)
+  /// SUPER_ADMIN은 NULL. COMPANY_ADMIN과 EMPLOYEE는 필수.
+  companyId          String?  @map("company_id") @db.Uuid
+  role               UserRole
+  mustChangePassword Boolean  @default(true) @map("must_change_password")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@map("users")
 }
