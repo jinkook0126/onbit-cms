@@ -24,7 +24,7 @@ export function Layout({ children }: LayoutProps): JSX.Element {
   const [queryClient] = useState(getQueryClient);
 
   return (
-    <html lang="en">
+    <html lang="ko">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

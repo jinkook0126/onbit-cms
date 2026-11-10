@@ -19,6 +19,7 @@ export type AuthenticatedUser = {
   loginId: string;
   role: UserRole;
   companyId: string | null;
+  companyName: string | null;
 };
 
 export const authenticatedUserContext = createContext<AuthenticatedUser | null>(null);
@@ -51,7 +52,7 @@ type LoginProfile = {
   role: UserRole;
   mustChangePassword: boolean;
   isActive: boolean;
-  company: { isActive: boolean } | null;
+  company: { isActive: boolean; name: string } | null;
 };
 
 export function normalizeLoginId(value: string): string | null {
@@ -89,7 +90,7 @@ async function findLoginProfile(userId: string): Promise<LoginProfile | null> {
       role: true,
       mustChangePassword: true,
       isActive: true,
-      company: { select: { isActive: true } },
+      company: { select: { isActive: true, name: true } },
     },
   });
 }
@@ -110,6 +111,7 @@ function toAuthenticatedUser(profile: LoginProfile): AuthenticatedUser {
     loginId: profile.loginId,
     role: profile.role,
     companyId: profile.companyId,
+    companyName: profile.company?.name ?? null,
   };
 }
 
