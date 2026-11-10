@@ -64,4 +64,4 @@ resource route는 URL이므로 `app/routes`에 둔다. 요청을 읽고 feature�
 
 인증은 `app/features/auth`에 있다. 화면은 `components`, 로그인 폼 상태는 `hooks/useLoginForm.ts`, 요청과 서버 처리는 `api/loginApi.ts`, `api/login.server.ts`, `api/logoutApi.ts`, `api/logout.server.ts`, `api/auth.server.ts`, 공유 타입은 `type.ts`다. `/login`, `/api/login`, `/api/logout` 라우트는 이 모듈을 호출한다.
 
-로그인 후 공통 레이아웃은 `app/features/shell`이다. 사이드바 메뉴, 브레드크럼, 오늘 날짜, 계정, 로그아웃을 담당한다. 브레드크럼은 매칭된 라우트를 위에서부터 잇는다. 메뉴 화면은 `shellMenuBreadcrumb`이고, 하위 화면은 loader가 반환한 `breadcrumb` 문자열을 뒤에 붙인다. 메뉴 본문은 아직 비어 있고, `app/routes/section.tsx`가 그 빈 화면이다.
+로그인 후 공통 레이아웃은 `app/features/shell`이다. 사이드바 메뉴, 브레드크럼, 오늘 날짜, 계정, 로그아웃을 담당한다. 브레드크럼은 매칭된 라우트를 위에서부터 잇는다. 메뉴 화면은 `shellMenuBreadcrumb`이고, 하위 화면은 `handle.breadcrumb` 또는 loader가 반환한 `breadcrumb` 문자열을 뒤에 붙인다. 설정은 `app/features/settings`다. `/settings`는 섹션 라벨과 카드 메뉴를 보여 준다. 조직 관리에는 회사 관리, 팀 관리, 직원 관리가 있고, 계정 및 권한에는 계정 설정이 있다. 각 메뉴 본문은 아직 비어 있다. 그 외 메뉴 본문도 비어 있고, `app/routes/section.tsx`가 그 빈 화면이다.
