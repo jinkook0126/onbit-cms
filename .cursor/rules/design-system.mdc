@@ -34,7 +34,7 @@ alwaysApply: false
 
 필요한 UI 컴포넌트는 다음 순서로 찾고, 앞 단계에서 해결되면 다음 단계로 넘어가지 않는다.
 
-1. **기존 컴포넌트 탐색**: `app/components/ui/`와 `app/components/`, 해당 기능 영역의 컴포넌트를 먼저 검색하고 조합이나 variant 확장으로 해결한다.
+1. **기존 컴포넌트 탐색**: `app/components/ui/`와 `app/features/<domain>/components`를 먼저 검색하고 조합이나 variant 확장으로 해결한다.
 2. **shadcn/ui 추가**: 기존 컴포넌트로 구현할 수 없으면 `npx shadcn@latest add <name>`으로 추가하고, `app/components/ui/`에서 한 번만 CMS 정책에 맞게 커스터마이징한다. 기존 파일(특히 `button.tsx`) 덮어쓰기 프롬프트에는 동의하지 않는다. 추가 직후 `npm run lint:fix`, `npm run format`을 순서대로 실행해 프로젝트 코드 스타일로 맞춘다(`app/components/ui/`도 ESLint, Prettier 검사 대상이다).
 3. **직접 구현**: shadcn/ui에 없는 컴포넌트는 직접 구현할 수 있다. 상호작용 요소는 `radix-ui` 프리미티브를 기반으로 해 접근성과 키보드 조작을 확보한다.
 4. **외부 라이브러리 추가**: 위 방법으로 불가능할 때만 검토한다. 추가 전에 기존 의존성으로 가능한지 확인하고, 추가 시 이유를 사용자에게 설명한다.
