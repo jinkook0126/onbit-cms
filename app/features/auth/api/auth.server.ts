@@ -1,16 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import { createContext } from 'react-router';
 
+import { MAX_LOGIN_ID_LENGTH } from '~/features/auth/type';
 import { prisma } from '~/lib/db.server';
 import { requiredServerEnv } from '~/lib/env.server';
 import { createSupabaseServerClient } from '~/lib/supabase.server';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { UserRole } from '../../../../generated/prisma/client';
+import type { Prisma, UserRole } from '../../../../generated/prisma/client';
 
 const AUTH_EMAIL_DOMAIN = 'onbit.local';
 const LOGIN_ID_PATTERN = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/;
-const MAX_LOGIN_ID_LENGTH = 64;
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 16;
 
@@ -68,6 +68,63 @@ export function normalizeLoginId(value: string): string | null {
 
 function toAuthEmail(loginId: string): string {
   return `${loginId}@${AUTH_EMAIL_DOMAIN}`;
+}
+
+// signUp은 @onbit.local 주소를 거절한다. 로그인에 쓰는 주소이므로 Auth 사용자와 이메일 identity를 직접 만든다.
+// 초기 비밀번호는 정규화된 아이디와 같다.
+export async function createLoginAuthUser(
+  db: Prisma.TransactionClient,
+  loginId: string,
+): Promise<{ userId: string; temporaryPassword: string }> {
+  const userId = crypto.randomUUID();
+  const temporaryPassword = loginId;
+  const email = toAuthEmail(loginId);
+
+  await db.$executeRaw`
+    INSERT INTO auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      confirmation_token, recovery_token, email_change_token_new, email_change,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+      is_sso_user, is_anonymous
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000000'::uuid,
+      ${userId}::uuid,
+      'authenticated',
+      'authenticated',
+      ${email},
+      extensions.crypt(${temporaryPassword}, extensions.gen_salt('bf')),
+      now(),
+      '',
+      '',
+      '',
+      '',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      '{}'::jsonb,
+      now(),
+      now(),
+      false,
+      false
+    )
+  `;
+  await db.$executeRaw`
+    INSERT INTO auth.identities (
+      provider_id, user_id, identity_data, provider, created_at, updated_at
+    ) VALUES (
+      ${userId},
+      ${userId}::uuid,
+      jsonb_build_object(
+        'sub', ${userId}::text,
+        'email', ${email}::text,
+        'email_verified', false,
+        'phone_verified', false
+      ),
+      'email',
+      now(),
+      now()
+    )
+  `;
+
+  return { userId, temporaryPassword };
 }
 
 function createMemoryAuthClient() {
@@ -142,6 +199,32 @@ export async function resolveSession(supabase: SupabaseClient): Promise<SessionR
   return { status: 'authenticated', user: toAuthenticatedUser(profile) };
 }
 
+export type OrganizationActor =
+  | { status: 'ok'; role: 'SUPER_ADMIN' }
+  | { status: 'ok'; role: 'COMPANY_ADMIN'; companyId: string }
+  | { status: 'anonymous' }
+  | { status: 'forbidden' };
+
+export async function resolveOrganizationActor(
+  request: Request,
+): Promise<{ actor: OrganizationActor; headers: Headers }> {
+  const { supabase, headers } = createSupabaseServerClient(request);
+  const session = await resolveSession(supabase);
+  if (session.status !== 'authenticated') {
+    return { actor: { status: 'anonymous' }, headers };
+  }
+  if (session.user.role === 'SUPER_ADMIN') {
+    return { actor: { status: 'ok', role: 'SUPER_ADMIN' }, headers };
+  }
+  if (session.user.role === 'COMPANY_ADMIN' && session.user.companyId) {
+    return {
+      actor: { status: 'ok', role: 'COMPANY_ADMIN', companyId: session.user.companyId },
+      headers,
+    };
+  }
+  return { actor: { status: 'forbidden' }, headers };
+}
+
 export async function loginWithPassword(
   request: Request,
   loginId: string,
@@ -185,11 +268,13 @@ export async function loginWithPassword(
   return { status: 'success', headers };
 }
 
+type InvalidPassword = Extract<PasswordChangeResult, { status: 'invalid-password' }>;
+
 function validateNewPassword(
   currentPassword: string,
   newPassword: string,
   confirmPassword: string,
-): PasswordChangeResult | null {
+): InvalidPassword | null {
   if (newPassword !== confirmPassword) {
     return {
       status: 'invalid-password',
@@ -283,5 +368,55 @@ export async function changePassword(input: {
   }
 
   await revokeMemorySession(memoryClient);
+  return { status: 'success' };
+}
+
+export type OwnPasswordChangeResult =
+  { status: 'success' } | { status: 'invalid-credentials' } | InvalidPassword;
+
+export async function changeOwnPassword(input: {
+  userId: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<OwnPasswordChangeResult> {
+  const validationError = validateNewPassword(
+    input.currentPassword,
+    input.newPassword,
+    input.confirmPassword,
+  );
+  if (validationError) {
+    return validationError;
+  }
+
+  const profile = await findLoginProfile(input.userId);
+  if (!profile || !isActiveProfile(profile)) {
+    return { status: 'invalid-credentials' };
+  }
+
+  const memoryClient = createMemoryAuthClient();
+  const { data, error } = await memoryClient.auth.signInWithPassword({
+    email: toAuthEmail(profile.loginId),
+    password: input.currentPassword,
+  });
+  if (error || data.user.id !== profile.id) {
+    if (!error) {
+      await revokeMemorySession(memoryClient);
+    }
+    return { status: 'invalid-credentials' };
+  }
+
+  const { error: updateError } = await memoryClient.auth.updateUser({
+    password: input.newPassword,
+  });
+  await revokeMemorySession(memoryClient);
+  if (updateError) {
+    return {
+      status: 'invalid-password',
+      field: 'newPassword',
+      message: '비밀번호를 변경하지 못했습니다. 다시 시도하세요.',
+    };
+  }
+
   return { status: 'success' };
 }

@@ -9,6 +9,7 @@ import {
 } from '~/components/ui/dialog';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
+import { PASSWORD_POLICY_PLACEHOLDER } from '~/features/auth/type';
 
 import type { JSX, SubmitEvent } from 'react';
 import type { LoginFieldErrors } from '~/features/auth/type';
@@ -100,20 +101,14 @@ export function PasswordChangeDialog({
               id="new-password"
               name="newPassword"
               type="password"
+              placeholder={PASSWORD_POLICY_PLACEHOLDER}
               autoComplete="new-password"
               maxLength={16}
               aria-required
               disabled={isSubmitting}
               aria-invalid={fieldErrors?.newPassword ? true : undefined}
-              aria-describedby={
-                fieldErrors?.newPassword
-                  ? 'new-password-help new-password-error'
-                  : 'new-password-help'
-              }
+              aria-describedby={fieldErrors?.newPassword ? 'new-password-error' : undefined}
             />
-            <p id="new-password-help" className="text-sm text-muted-foreground">
-              8자 이상 16자 이하로 입력하세요.
-            </p>
             {fieldErrors?.newPassword && (
               <p id="new-password-error" className="text-sm text-destructive">
                 {fieldErrors.newPassword}

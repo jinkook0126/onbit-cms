@@ -1,7 +1,11 @@
+export const PASSWORD_POLICY_PLACEHOLDER = '8자 이상 16자 이하';
+
 export const loginIntent = {
   login: 'login',
   changePassword: 'change-password',
 } as const;
+
+export const MAX_LOGIN_ID_LENGTH = 64;
 
 export type LoginIntent = (typeof loginIntent)[keyof typeof loginIntent];
 

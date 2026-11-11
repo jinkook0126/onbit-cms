@@ -9,6 +9,7 @@ import {
   ScrollRestoration,
 } from 'react-router';
 
+import { Toaster } from '~/components/ui/sonner';
 import { TooltipProvider } from '~/components/ui/tooltip';
 import { getQueryClient } from '~/lib/queryClient';
 
@@ -33,7 +34,10 @@ export function Layout({ children }: LayoutProps): JSX.Element {
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>{children}</TooltipProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
         </QueryClientProvider>
         <ScrollRestoration />
         <Scripts />
