@@ -24,6 +24,38 @@ enum UserRole {
   @@map("user_role")
 }
 
+/// 상담 고객의 현재 상태. 화면에서 고르는 고정 목록이다.
+enum ConsultationStatus {
+  /// 상담중
+  IN_CONSULTATION
+  /// 고민중
+  CONSIDERING
+  /// 부재
+  ABSENT
+  /// 거절
+  REJECTED
+  /// 수임
+  RETAINED
+
+  @@map("consultation_status")
+}
+
+/// 상담 고객이 들어온 경로. 화면에서 고르는 고정 목록이다.
+enum InflowSource {
+  /// 홈페이지
+  HOMEPAGE
+  /// 네이버
+  NAVER
+  /// 거래처 소개
+  REFERRAL
+  /// 전화
+  PHONE
+  /// 기타
+  OTHER
+
+  @@map("inflow_source")
+}
+
 /// 회사. 이후 고객 데이터와 업무 데이터는 이 레코드에 소속된다.
 model Company {
   id        String   @id @default(uuid()) @db.Uuid
@@ -34,8 +66,9 @@ model Company {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  users User[]
-  teams Team[]
+  users     User[]
+  teams     Team[]
+  customers Customer[]
 
   @@map("companies")
 }
@@ -56,11 +89,12 @@ model User {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company  Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company           Company?   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// 소속 팀. 아직 없으면 NULL이다.
-  teamId   String?  @map("team_id") @db.Uuid
-  team     Team?    @relation("TeamMembers", fields: [teamId], references: [id], onDelete: Restrict)
-  ledTeams Team[]   @relation("TeamLeader")
+  teamId            String?    @map("team_id") @db.Uuid
+  team              Team?      @relation("TeamMembers", fields: [teamId], references: [id], onDelete: Restrict)
+  ledTeams          Team[]     @relation("TeamLeader")
+  assignedCustomers Customer[] @relation("CustomerAssignee")
 
   @@index([companyId])
   @@index([teamId])
@@ -85,4 +119,49 @@ model Team {
   @@index([companyId])
   @@index([leaderId])
   @@map("teams")
+}
+
+/// 회사의 상담 고객. 상담 상태와 유입처는 ENUM이고, 담당 직원과 다음 연락일은 아직 없을 수 있다.
+model Customer {
+  id            String             @id @default(uuid()) @db.Uuid
+  companyId     String             @map("company_id") @db.Uuid
+  name          String
+  /// 연락 전화번호. 하이픈 없이 숫자만 저장한다.
+  phone         String             @db.VarChar(20)
+  source        InflowSource
+  /// 현재 상담 상태.
+  status        ConsultationStatus @default(IN_CONSULTATION)
+  /// 담당 사용자 id. 아직 없으면 NULL이다.
+  /// 정하면 같은 회사의 활성 직원이어야 하고, 회사 담당 마스터는 본인을 담당으로 둘 수 있다.
+  assigneeId    String?            @map("assignee_id") @db.Uuid
+  /// 다음 연락일. 아직 없으면 NULL이다.
+  nextContactOn DateTime?          @map("next_contact_on") @db.Date
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  assignee      User?          @relation("CustomerAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  consultations Consultation[]
+
+  @@index([companyId])
+  @@index([assigneeId])
+  @@map("customers")
+}
+
+/// 고객의 상담 이력. 상담일자는 별도 컬럼 없이 created_at을 쓴다.
+model Consultation {
+  id            String    @id @default(uuid()) @db.Uuid
+  customerId    String    @map("customer_id") @db.Uuid
+  /// 상담 내용.
+  content       String
+  /// 다음 연락일. 아직 없으면 NULL이다.
+  nextContactOn DateTime? @map("next_contact_on") @db.Date
+  /// 상담 일자.
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, createdAt])
+  @@map("consultations")
 }

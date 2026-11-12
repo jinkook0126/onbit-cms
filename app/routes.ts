@@ -3,7 +3,10 @@ import { type RouteConfig, index, layout, route } from '@react-router/dev/routes
 export default [
   layout('routes/authenticated.tsx', [
     index('routes/section.tsx', { id: 'today' }),
-    route('customers', 'routes/section.tsx', { id: 'customers' }),
+    route('customers', 'routes/customers.tsx', { id: 'customers' }, [
+      index('routes/customers-index.tsx', { id: 'customers-index' }),
+      route(':customerId', 'routes/customer.tsx', { id: 'customer' }),
+    ]),
     route('cases', 'routes/section.tsx', { id: 'cases' }),
     route('receivables', 'routes/section.tsx', { id: 'receivables' }),
     route('settlements', 'routes/section.tsx', { id: 'settlements' }),
@@ -25,6 +28,10 @@ export default [
   route('api/login', 'routes/api.login.ts'),
   route('api/logout', 'routes/api.logout.ts'),
   route('api/account', 'routes/api.account.ts'),
+  route('api/customers', 'routes/api.customers.ts'),
+  route('api/customers/assignees', 'routes/api.customer-assignees.ts'),
+  route('api/customers/:customerId/consultations', 'routes/api.customer-consultations.ts'),
+  route('api/customers/:customerId', 'routes/api.customer.ts'),
   route('api/companies', 'routes/api.companies.ts'),
   route('api/companies/:companyId', 'routes/api.company.ts'),
   route('api/companies/:companyId/master', 'routes/api.company-master.ts'),
