@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 
 import { authQueryKeys } from '~/features/auth/api/authQuery';
 import { requestLogin } from '~/features/auth/api/loginApi';
@@ -48,6 +49,25 @@ function transportErrorMessage(intent: LoginIntent | undefined): string {
   return '로그인하지 못했습니다. 다시 시도하세요.';
 }
 
+function notifyPasswordChangeResult(result: LoginResponse): void {
+  if (result.passwordChanged === true) {
+    toast('비밀번호를 변경했습니다. 새 비밀번호로 다시 로그인하세요.');
+    return;
+  }
+  if (result.formError) {
+    toast(result.formError);
+    return;
+  }
+  const fieldMessage = result.fieldErrors?.newPassword ?? result.fieldErrors?.confirmPassword;
+  if (fieldMessage) {
+    toast(fieldMessage);
+    return;
+  }
+  if (result.fieldErrors) {
+    toast('비밀번호를 변경하지 못했습니다.');
+  }
+}
+
 function shouldClearPassword(
   showPasswordChange: boolean,
   isError: boolean,
@@ -73,12 +93,20 @@ export function useLoginForm(): LoginFormState {
     mutationFn: requestLogin,
     retry: 0,
     gcTime: 0,
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
+      if (variables.intent === loginIntent.changePassword) {
+        notifyPasswordChangeResult(result);
+      }
       if (!result.redirectTo) {
         return;
       }
       void queryClient.invalidateQueries({ queryKey: authQueryKeys.all });
       void navigate(result.redirectTo);
+    },
+    onError: (_error, variables) => {
+      if (variables.intent === loginIntent.changePassword) {
+        toast(transportErrorMessage(loginIntent.changePassword));
+      }
     },
     onSettled: () => {
       submitLock.current = false;
