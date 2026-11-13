@@ -9,6 +9,12 @@ export const customerQueryKeys = {
   detail: (customerId: string) => [...customerQueryKeys.details(), customerId] as const,
   consultations: (customerId: string) =>
     [...customerQueryKeys.all, 'consultations', customerId] as const,
+  installments: (customerId: string) =>
+    [...customerQueryKeys.all, 'installments', customerId] as const,
+  ledger: (customerId: string) => [...customerQueryKeys.all, 'ledger', customerId] as const,
+  caseProgress: (customerId: string) =>
+    [...customerQueryKeys.all, 'case-progress', customerId] as const,
+  summary: (customerId: string) => [...customerQueryKeys.all, 'summary', customerId] as const,
   assignees: () => [...customerQueryKeys.all, 'assignees'] as const,
 };
 

@@ -64,6 +64,15 @@ export function useRetainCustomer(customerId: string): RetainCustomerState {
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.consultations(customerId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.installments(customerId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.caseProgress(customerId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: customerQueryKeys.summary(customerId),
+      });
       setOpen(false);
       toast('수임으로 전환했습니다.');
     },

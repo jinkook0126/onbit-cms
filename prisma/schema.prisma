@@ -56,6 +56,44 @@ enum CaseType {
   @@map("case_type")
 }
 
+/// 사건 진행 단계. 수임하면 서류수집부터 시작한다.
+enum CaseProgressStage {
+  /// 서류수집
+  DOCUMENT_COLLECTION
+  /// 보정
+  CORRECTION
+  /// 접수
+  FILING
+  /// 개시
+  COMMENCEMENT
+  /// 인가
+  APPROVAL
+  /// 종결
+  CLOSURE
+
+  @@map("case_progress_stage")
+}
+
+/// 분납 일정의 구분. 계약금은 한 줄이고, 회차는 분납 회수만큼 있다.
+enum InstallmentKind {
+  /// 계약금
+  DEPOSIT
+  /// 회차
+  INSTALLMENT
+
+  @@map("installment_kind")
+}
+
+/// 입금 수단. 화면에서 고르는 고정 목록이다.
+enum PaymentMethod {
+  /// 현금
+  CASH
+  /// 카드
+  CARD
+
+  @@map("payment_method")
+}
+
 /// 상담 고객이 들어온 경로. 화면에서 고르는 고정 목록이다.
 enum InflowSource {
   /// 홈페이지
@@ -105,12 +143,16 @@ model User {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company           Company?   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company             Company?             @relation(fields: [companyId], references: [id], onDelete: Restrict)
   /// 소속 팀. 아직 없으면 NULL이다.
-  teamId            String?    @map("team_id") @db.Uuid
-  team              Team?      @relation("TeamMembers", fields: [teamId], references: [id], onDelete: Restrict)
-  ledTeams          Team[]     @relation("TeamLeader")
-  assignedCustomers Customer[] @relation("CustomerAssignee")
+  teamId              String?              @map("team_id") @db.Uuid
+  team                Team?                @relation("TeamMembers", fields: [teamId], references: [id], onDelete: Restrict)
+  ledTeams            Team[]               @relation("TeamLeader")
+  assignedCustomers   Customer[]           @relation("CustomerAssignee")
+  actedConsultations  Consultation[]       @relation("ConsultationActor")
+  editedConsultations Consultation[]       @relation("ConsultationEditor")
+  actedPayments       InstallmentPayment[] @relation("PaymentActor")
+  actedRefunds        InstallmentRefund[]  @relation("RefundActor")
 
   @@index([companyId])
   @@index([teamId])
@@ -173,35 +215,120 @@ model Consultation {
   content       String
   /// 다음 연락일. 아직 없으면 NULL이다.
   nextContactOn DateTime? @map("next_contact_on") @db.Date
+  /// 이 상담 이력을 만든 사용자. 예전 행은 NULL이다.
+  actorId       String?   @map("actor_id") @db.Uuid
+  /// 이 상담 이력을 마지막으로 고친 사용자. 한 번도 고치지 않았으면 NULL이다.
+  updatedById   String?   @map("updated_by_id") @db.Uuid
   /// 상담 일자.
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  actor     User?    @relation("ConsultationActor", fields: [actorId], references: [id], onDelete: Restrict)
+  updatedBy User?    @relation("ConsultationEditor", fields: [updatedById], references: [id], onDelete: Restrict)
 
+  @@index([actorId])
+  @@index([updatedById])
   @@index([customerId, createdAt])
   @@map("consultations")
 }
 
 /// 수임으로 전환할 때 만드는 사건. 고객당 하나다.
 model CustomerCase {
-  id               String   @id @default(uuid()) @db.Uuid
-  customerId       String   @unique @map("customer_id") @db.Uuid
+  id               String            @id @default(uuid()) @db.Uuid
+  customerId       String            @unique @map("customer_id") @db.Uuid
   /// 계약일.
-  contractedOn     DateTime @map("contracted_on") @db.Date
-  caseType         CaseType @map("case_type")
+  contractedOn     DateTime          @map("contracted_on") @db.Date
+  caseType         CaseType          @map("case_type")
   /// 수임료. 원 단위 정수.
-  retainerFee      Int      @map("retainer_fee")
+  retainerFee      Int               @map("retainer_fee")
   /// 계약금. 원 단위 정수.
   deposit          Int
   /// 분납 회수.
-  installmentCount Int      @map("installment_count")
+  installmentCount Int               @map("installment_count")
   /// 첫 회차 납부일.
-  firstPaymentOn   DateTime @map("first_payment_on") @db.Date
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  firstPaymentOn   DateTime          @map("first_payment_on") @db.Date
+  /// 진행 단계. 수임 직후는 서류수집이다.
+  progressStage    CaseProgressStage @default(DOCUMENT_COLLECTION) @map("progress_stage")
+  /// 다음 할 일. 수임 직후는 서류 요청이다.
+  nextTask         String            @default("서류 요청") @map("next_task")
+  /// 업무 기한. 아직 없으면 NULL이고 화면에는 미정이다.
+  taskDueOn        DateTime?         @map("task_due_on") @db.Date
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customer     Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  installments CustomerInstallment[]
 
   @@map("customer_cases")
+}
+
+/// 수임 사건의 납부 일정. 계약금 한 줄과 회차 줄을 함께 둔다.
+model CustomerInstallment {
+  id              String          @id @default(uuid()) @db.Uuid
+  customerCaseId  String          @map("customer_case_id") @db.Uuid
+  kind            InstallmentKind
+  /// 계약금은 0, 회차는 1부터다.
+  sequence        Int
+  /// 납부 약속일.
+  promisedOn      DateTime        @map("promised_on") @db.Date
+  /// 예정액. 원 단위 정수.
+  scheduledAmount Int             @map("scheduled_amount")
+  /// 수납액. 원 단위 정수. 아직 입금이 없으면 0이다.
+  receivedAmount  Int             @default(0) @map("received_amount")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customerCase CustomerCase         @relation(fields: [customerCaseId], references: [id], onDelete: Restrict)
+  payments     InstallmentPayment[]
+
+  @@unique([customerCaseId, sequence])
+  @@index([customerCaseId])
+  @@map("customer_installments")
+}
+
+/// 분납 일정에 기록한 입금. 수납액은 이 금액의 합이다.
+model InstallmentPayment {
+  id            String        @id @default(uuid()) @db.Uuid
+  installmentId String        @map("installment_id") @db.Uuid
+  /// 입금액. 원 단위 정수.
+  amount        Int
+  /// 입금일.
+  paidOn        DateTime      @map("paid_on") @db.Date
+  method        PaymentMethod
+  /// 입금을 등록한 사용자. 예전 행은 NULL이다.
+  actorId       String?       @map("actor_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  installment CustomerInstallment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+  actor       User?               @relation("PaymentActor", fields: [actorId], references: [id], onDelete: Restrict)
+  refunds     InstallmentRefund[]
+
+  @@index([installmentId])
+  @@index([actorId])
+  @@map("installment_payments")
+}
+
+/// 입금 한 건에서 되돌린 금액. 환불가능금액은 입금액에서 환불 합계를 뺀 값이다.
+model InstallmentRefund {
+  id         String   @id @default(uuid()) @db.Uuid
+  paymentId  String   @map("payment_id") @db.Uuid
+  /// 환불액. 원 단위 정수.
+  amount     Int
+  /// 환불일.
+  refundedOn DateTime @map("refunded_on") @db.Date
+  /// 환불 사유.
+  reason     String
+  /// 환불을 등록한 사용자. 예전 행은 NULL이다.
+  actorId    String?  @map("actor_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payment InstallmentPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  actor   User?              @relation("RefundActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId])
+  @@index([actorId])
+  @@map("installment_refunds")
 }

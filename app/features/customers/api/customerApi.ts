@@ -1,4 +1,6 @@
 import {
+  isCaseProgress,
+  isCaseProgressUpdateResponse,
   isConsultationCreateResponse,
   isConsultationListResponse,
   isCustomerAssigneeResponse,
@@ -7,10 +9,19 @@ import {
   isCustomerListResponse,
   isCustomerRetainResponse,
   isCustomerStatusResponse,
+  isCustomerSummary,
+  isInstallmentListResponse,
+  isLedgerListResponse,
+  isRefundResponse,
+  isInstallmentPaymentResponse,
+  isInstallmentPromiseResponse,
 } from '~/features/customers/type';
 import { ApiError, apiClient } from '~/lib/apiClient';
 
 import type {
+  CaseProgress,
+  CaseProgressUpdateResponse,
+  CaseProgressUpdateSubmission,
   ConsultationCreateResponse,
   ConsultationCreateSubmission,
   ConsultationListResponse,
@@ -24,6 +35,15 @@ import type {
   CustomerRetainSubmission,
   CustomerStatusResponse,
   CustomerStatusSubmission,
+  CustomerSummary,
+  InstallmentListResponse,
+  InstallmentPaymentResponse,
+  InstallmentPaymentSubmission,
+  InstallmentPromiseResponse,
+  InstallmentPromiseSubmission,
+  LedgerListResponse,
+  RefundResponse,
+  RefundSubmission,
 } from '~/features/customers/type';
 
 const customersApiPath = '/api/customers';
@@ -86,6 +106,17 @@ export async function requestCustomerDetail(
   return result.body;
 }
 
+export async function requestCustomerSummary(
+  customerId: string,
+  signal?: AbortSignal,
+): Promise<CustomerSummary> {
+  const result = await apiClient(`${customerPath(customerId)}/summary`, { signal });
+  if (!result.ok || !isCustomerSummary(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
 export async function requestCustomerStatusUpdate(
   customerId: string,
   submission: CustomerStatusSubmission,
@@ -106,6 +137,100 @@ export async function requestCustomerRetain(
     body: submission,
   });
   if (!isCustomerRetainResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+function customerInstallmentsPath(customerId: string): string {
+  return `${customerPath(customerId)}/installments`;
+}
+
+export async function requestRefund(
+  customerId: string,
+  submission: RefundSubmission,
+): Promise<RefundResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/refunds`, {
+    method: 'POST',
+    body: submission,
+  });
+  if (!isRefundResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCaseProgress(
+  customerId: string,
+  signal?: AbortSignal,
+): Promise<CaseProgress> {
+  const result = await apiClient(`${customerPath(customerId)}/case-progress`, { signal });
+  if (!result.ok || !isCaseProgress(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCaseProgressUpdate(
+  customerId: string,
+  submission: CaseProgressUpdateSubmission,
+): Promise<CaseProgressUpdateResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/case-progress`, {
+    method: 'PATCH',
+    body: submission,
+  });
+  if (!isCaseProgressUpdateResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestLedger(
+  customerId: string,
+  signal?: AbortSignal,
+): Promise<LedgerListResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/ledger`, { signal });
+  if (!result.ok || !isLedgerListResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestInstallments(
+  customerId: string,
+  signal?: AbortSignal,
+): Promise<InstallmentListResponse> {
+  const result = await apiClient(customerInstallmentsPath(customerId), { signal });
+  if (!result.ok || !isInstallmentListResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestInstallmentPayment(
+  customerId: string,
+  submission: InstallmentPaymentSubmission,
+): Promise<InstallmentPaymentResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/installment-payments`, {
+    method: 'POST',
+    body: submission,
+  });
+  if (!isInstallmentPaymentResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestInstallmentPromiseUpdate(
+  customerId: string,
+  installmentId: string,
+  submission: InstallmentPromiseSubmission,
+): Promise<InstallmentPromiseResponse> {
+  const result = await apiClient(
+    `${customerInstallmentsPath(customerId)}/${encodeURIComponent(installmentId)}`,
+    { method: 'PATCH', body: submission },
+  );
+  if (!isInstallmentPromiseResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;

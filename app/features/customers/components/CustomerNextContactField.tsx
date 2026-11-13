@@ -18,6 +18,7 @@ type CustomerNextContactFieldProps = {
   invalid: boolean;
   message?: string;
   disabled: boolean;
+  clearable?: boolean;
   onChange: (value: string) => void;
 };
 
@@ -55,6 +56,7 @@ export function CustomerNextContactField({
   invalid,
   message,
   disabled,
+  clearable = true,
   onChange,
 }: CustomerNextContactFieldProps): JSX.Element {
   const [open, setOpen] = useState(false);
@@ -100,7 +102,7 @@ export function CustomerNextContactField({
         </PopoverTrigger>
         <PopoverContent align="start" className="z-[60] w-auto p-0">
           <Calendar mode="single" locale={ko} selected={selected} onSelect={selectDate} />
-          {value === '' ? null : (
+          {!clearable || value === '' ? null : (
             <div className="border-t border-border p-2">
               <Button type="button" variant="ghost" className="w-full" onClick={clearDate}>
                 날짜 지우기

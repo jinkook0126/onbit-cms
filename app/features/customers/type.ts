@@ -5,7 +5,14 @@ export const MIN_CUSTOMER_PHONE_LENGTH = 8;
 export const MAX_CUSTOMER_PHONE_LENGTH = 12;
 export const MAX_CONSULTATION_CONTENT_LENGTH = 1000;
 export const MAX_RETAIN_AMOUNT = 2_000_000_000;
+const refundConsultationPrefixLimit = '환불 2,000,000,000원 · '.length;
+export const MAX_REFUND_REASON_LENGTH =
+  MAX_CONSULTATION_CONTENT_LENGTH - refundConsultationPrefixLimit;
 export const MAX_INSTALLMENT_COUNT = 120;
+const promiseChangePrefixLimit = `${MAX_INSTALLMENT_COUNT}회차 납기 0000-00-00 -> 0000-00-00 / `.length;
+export const MAX_PROMISE_REASON_LENGTH =
+  MAX_CONSULTATION_CONTENT_LENGTH - promiseChangePrefixLimit;
+export const MAX_CASE_NEXT_TASK_LENGTH = 200;
 
 export function customerPhoneDigits(value: string): string {
   return value.replace(/\D/g, '').slice(0, MAX_CUSTOMER_PHONE_LENGTH);
@@ -63,6 +70,18 @@ export const caseTypeLabels = {
   FRESH_START_FUND: '새출발기금',
 } as const;
 
+export const caseProgressStageLabels = {
+  DOCUMENT_COLLECTION: '서류수집',
+  CORRECTION: '보정',
+  FILING: '접수',
+  COMMENCEMENT: '개시',
+  APPROVAL: '인가',
+  CLOSURE: '종결',
+} as const;
+
+export const initialCaseProgressStage = 'DOCUMENT_COLLECTION' satisfies CaseProgressStage;
+export const initialCaseNextTask = '서류 요청';
+
 export const inflowSourceLabels = {
   HOMEPAGE: '홈페이지',
   NAVER: '네이버',
@@ -78,6 +97,39 @@ export const customerSearchFieldLabels = {
 
 export type ConsultationStatus = keyof typeof consultationStatusLabels;
 export type CaseType = keyof typeof caseTypeLabels;
+export type CaseProgressStage = keyof typeof caseProgressStageLabels;
+
+export type CaseProgress = {
+  stage: CaseProgressStage;
+  nextTask: string;
+  taskDueOn: string | null;
+};
+
+export type CaseProgressUpdateFieldErrors = {
+  stage?: string;
+  nextTask?: string;
+  taskDueOn?: string;
+};
+
+export type CaseProgressUpdateSubmission = {
+  stage: string;
+  nextTask: string;
+  taskDueOn: string | null;
+};
+
+export type CaseProgressUpdateResponse = {
+  id?: string;
+  fieldErrors?: CaseProgressUpdateFieldErrors;
+  formError?: string;
+};
+
+export type CustomerSummary = {
+  totalAmount: number;
+  deposit: number;
+  netReceived: number;
+  remainingRetainer: number;
+  overdue: number;
+};
 export type InflowSource = keyof typeof inflowSourceLabels;
 export type CustomerSearchField = keyof typeof customerSearchFieldLabels;
 
@@ -431,6 +483,367 @@ export function isCustomerRetainResponse(value: unknown): value is CustomerRetai
     return false;
   }
   if (value.fieldErrors !== undefined && !isCustomerRetainFieldErrors(value.fieldErrors)) {
+    return false;
+  }
+  return true;
+}
+
+export const INSTALLMENT_ALREADY_PAID_MESSAGE = '이미 완납된 회차입니다.';
+
+export const paymentMethodLabels = {
+  CASH: '현금',
+  CARD: '카드',
+} as const;
+
+export type PaymentMethod = keyof typeof paymentMethodLabels;
+
+export function installmentScheduleLabel(installment: {
+  kind: InstallmentKind;
+  sequence: number;
+}): string {
+  if (installment.kind === 'DEPOSIT') {
+    return '계약금';
+  }
+  return `${installment.sequence}회차`;
+}
+
+export type InstallmentKind = 'DEPOSIT' | 'INSTALLMENT';
+
+export type InstallmentListItem = {
+  id: string;
+  kind: InstallmentKind;
+  sequence: number;
+  promisedOn: string;
+  scheduledAmount: number;
+  receivedAmount: number;
+};
+
+export type InstallmentListResponse = {
+  installments: InstallmentListItem[];
+};
+
+export type InstallmentPromiseFieldErrors = {
+  promisedOn?: string;
+  reason?: string;
+};
+
+export type InstallmentPromiseSubmission = {
+  promisedOn: string;
+  reason: string;
+};
+
+export type InstallmentPromiseResponse = {
+  id?: string;
+  fieldErrors?: InstallmentPromiseFieldErrors;
+  formError?: string;
+};
+
+function isInstallmentKind(value: unknown): value is InstallmentKind {
+  return value === 'DEPOSIT' || value === 'INSTALLMENT';
+}
+
+function isInstallmentListItem(value: unknown): value is InstallmentListItem {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'string' &&
+    isInstallmentKind(value.kind) &&
+    typeof value.sequence === 'number' &&
+    typeof value.promisedOn === 'string' &&
+    typeof value.scheduledAmount === 'number' &&
+    typeof value.receivedAmount === 'number'
+  );
+}
+
+const caseProgressStages = Object.keys(caseProgressStageLabels);
+
+export function isCaseProgressStage(value: unknown): value is CaseProgressStage {
+  return typeof value === 'string' && caseProgressStages.includes(value);
+}
+
+function isWonAmount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function isCustomerSummary(value: unknown): value is CustomerSummary {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    isWonAmount(value.totalAmount) &&
+    isWonAmount(value.deposit) &&
+    isWonAmount(value.netReceived) &&
+    isWonAmount(value.remainingRetainer) &&
+    isWonAmount(value.overdue)
+  );
+}
+
+export function isCaseProgress(value: unknown): value is CaseProgress {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    isCaseProgressStage(value.stage) &&
+    typeof value.nextTask === 'string' &&
+    (value.taskDueOn === null || typeof value.taskDueOn === 'string')
+  );
+}
+
+export function isCaseProgressUpdateSubmission(
+  value: unknown,
+): value is CaseProgressUpdateSubmission {
+  return (
+    isRecord(value) &&
+    typeof value.stage === 'string' &&
+    typeof value.nextTask === 'string' &&
+    (value.taskDueOn === null || typeof value.taskDueOn === 'string')
+  );
+}
+
+function isCaseProgressUpdateFieldErrors(value: unknown): value is CaseProgressUpdateFieldErrors {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const stage = value.stage === undefined || typeof value.stage === 'string';
+  const nextTask = value.nextTask === undefined || typeof value.nextTask === 'string';
+  const taskDueOn = value.taskDueOn === undefined || typeof value.taskDueOn === 'string';
+  return stage && nextTask && taskDueOn;
+}
+
+export function isCaseProgressUpdateResponse(
+  value: unknown,
+): value is CaseProgressUpdateResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.id !== undefined && typeof value.id !== 'string') {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  if (value.fieldErrors !== undefined && !isCaseProgressUpdateFieldErrors(value.fieldErrors)) {
+    return false;
+  }
+  return true;
+}
+
+export function isInstallmentListResponse(value: unknown): value is InstallmentListResponse {
+  if (!isRecord(value) || !Array.isArray(value.installments)) {
+    return false;
+  }
+  return value.installments.every(isInstallmentListItem);
+}
+
+function isInstallmentPromiseFieldErrors(value: unknown): value is InstallmentPromiseFieldErrors {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const promisedOn = value.promisedOn === undefined || typeof value.promisedOn === 'string';
+  const reason = value.reason === undefined || typeof value.reason === 'string';
+  return promisedOn && reason;
+}
+
+export function isInstallmentPromiseSubmission(
+  value: unknown,
+): value is InstallmentPromiseSubmission {
+  return (
+    isRecord(value) && typeof value.promisedOn === 'string' && typeof value.reason === 'string'
+  );
+}
+
+export function isInstallmentPromiseResponse(value: unknown): value is InstallmentPromiseResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.id !== undefined && typeof value.id !== 'string') {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  if (value.fieldErrors !== undefined && !isInstallmentPromiseFieldErrors(value.fieldErrors)) {
+    return false;
+  }
+  return true;
+}
+
+export type InstallmentPaymentFieldErrors = {
+  amount?: string;
+  paidOn?: string;
+  installmentId?: string;
+  method?: string;
+};
+
+export type InstallmentPaymentSubmission = {
+  amount: string;
+  paidOn: string;
+  installmentId: string;
+  method: string;
+};
+
+export type InstallmentPaymentResponse = {
+  id?: string;
+  fieldErrors?: InstallmentPaymentFieldErrors;
+  formError?: string;
+};
+
+const installmentPaymentErrorKeys = ['amount', 'paidOn', 'installmentId', 'method'] as const;
+
+export function isPaymentMethod(value: unknown): value is PaymentMethod {
+  return value === 'CASH' || value === 'CARD';
+}
+
+export const ledgerEntryKindLabels = {
+  PAYMENT: '입금',
+  REFUND: '환불',
+} as const;
+
+export type LedgerEntryKind = keyof typeof ledgerEntryKindLabels;
+
+export type LedgerEntry = {
+  id: string;
+  transactedOn: string;
+  kind: LedgerEntryKind;
+  amount: number;
+  method: PaymentMethod;
+  reason: string | null;
+};
+
+export type RefundSource = {
+  id: string;
+  paidOn: string;
+  refundableAmount: number;
+};
+
+export type LedgerListResponse = {
+  entries: LedgerEntry[];
+  refundSources: RefundSource[];
+};
+
+export const REFUND_EXHAUSTED_MESSAGE = '환불할 수 있는 금액이 없습니다.';
+
+export type RefundFieldErrors = {
+  paymentId?: string;
+  amount?: string;
+  refundedOn?: string;
+  reason?: string;
+};
+
+export type RefundSubmission = {
+  paymentId: string;
+  amount: string;
+  refundedOn: string;
+  reason: string;
+};
+
+export type RefundResponse = {
+  id?: string;
+  fieldErrors?: RefundFieldErrors;
+  formError?: string;
+};
+
+function isLedgerEntryKind(value: unknown): value is LedgerEntryKind {
+  return value === 'PAYMENT' || value === 'REFUND';
+}
+
+function isLedgerEntry(value: unknown): value is LedgerEntry {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const reason = value.reason === null || typeof value.reason === 'string';
+  return (
+    typeof value.id === 'string' &&
+    typeof value.transactedOn === 'string' &&
+    isLedgerEntryKind(value.kind) &&
+    typeof value.amount === 'number' &&
+    isPaymentMethod(value.method) &&
+    reason
+  );
+}
+
+function isRefundSource(value: unknown): value is RefundSource {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'string' &&
+    typeof value.paidOn === 'string' &&
+    typeof value.refundableAmount === 'number'
+  );
+}
+
+export function isLedgerListResponse(value: unknown): value is LedgerListResponse {
+  if (!isRecord(value) || !Array.isArray(value.entries) || !Array.isArray(value.refundSources)) {
+    return false;
+  }
+  return value.entries.every(isLedgerEntry) && value.refundSources.every(isRefundSource);
+}
+
+const refundErrorKeys = ['paymentId', 'amount', 'refundedOn', 'reason'] as const;
+
+function isRefundFieldErrors(value: unknown): value is RefundFieldErrors {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return refundErrorKeys.every((key) => value[key] === undefined || typeof value[key] === 'string');
+}
+
+export function isRefundSubmission(value: unknown): value is RefundSubmission {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return refundErrorKeys.every((key) => typeof value[key] === 'string');
+}
+
+export function isRefundResponse(value: unknown): value is RefundResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.id !== undefined && typeof value.id !== 'string') {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  if (value.fieldErrors !== undefined && !isRefundFieldErrors(value.fieldErrors)) {
+    return false;
+  }
+  return true;
+}
+
+function isInstallmentPaymentFieldErrors(value: unknown): value is InstallmentPaymentFieldErrors {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return installmentPaymentErrorKeys.every(
+    (key) => value[key] === undefined || typeof value[key] === 'string',
+  );
+}
+
+export function isInstallmentPaymentSubmission(
+  value: unknown,
+): value is InstallmentPaymentSubmission {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return installmentPaymentErrorKeys.every((key) => typeof value[key] === 'string');
+}
+
+export function isInstallmentPaymentResponse(
+  value: unknown,
+): value is InstallmentPaymentResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.id !== undefined && typeof value.id !== 'string') {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  if (value.fieldErrors !== undefined && !isInstallmentPaymentFieldErrors(value.fieldErrors)) {
     return false;
   }
   return true;
