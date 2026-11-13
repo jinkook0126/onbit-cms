@@ -8,6 +8,7 @@ import {
   CustomerConsultationList,
   formatConsultationCreatedAt,
 } from '~/features/customers/components/CustomerConsultationList';
+import { RetainCustomerButton } from '~/features/customers/components/RetainCustomerButton';
 import { useCustomerConsultations } from '~/features/customers/hooks/useCustomerConsultations';
 import { useCustomerDetail } from '~/features/customers/hooks/useCustomerDetail';
 import {
@@ -21,10 +22,22 @@ import { fieldLabel, fieldValue } from '~/lib/styles';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import type { JSX } from 'react';
-import type { ConsultationListResponse } from '~/features/customers/type';
+import type { ConsultationListResponse, ConsultationStatus } from '~/features/customers/type';
 
 const missingRecentConsultation = '없음';
 const customerCaseStageLabel = '서류 준비';
+const unassignedAssigneeLabel = '미정';
+
+const statusBadgeVariants: Record<
+  ConsultationStatus,
+  'default' | 'secondary' | 'outline' | 'destructive'
+> = {
+  IN_CONSULTATION: 'default',
+  CONSIDERING: 'secondary',
+  ABSENT: 'outline',
+  REJECTED: 'destructive',
+  RETAINED: 'default',
+};
 
 type CustomerDetailTab = {
   value: string;
@@ -102,10 +115,15 @@ function CustomerDetailTabEmpty({
 
 type CustomerDetailTabsProps = {
   customerId: string;
+  status: ConsultationStatus;
   consultations: UseQueryResult<ConsultationListResponse>;
 };
 
-function CustomerDetailTabs({ customerId, consultations }: CustomerDetailTabsProps): JSX.Element {
+function CustomerDetailTabs({
+  customerId,
+  status,
+  consultations,
+}: CustomerDetailTabsProps): JSX.Element {
   return (
     <Tabs defaultValue={customerDetailTabs[0].value} className="gap-4">
       <TabsList variant="line">
@@ -122,7 +140,11 @@ function CustomerDetailTabs({ customerId, consultations }: CustomerDetailTabsPro
       {customerDetailTabs.map((tab) => (
         <TabsContent key={tab.value} value={tab.value}>
           {tab.value === 'consultations' ? (
-            <CustomerConsultationList customerId={customerId} consultations={consultations} />
+            <CustomerConsultationList
+              customerId={customerId}
+              status={status}
+              consultations={consultations}
+            />
           ) : (
             <CustomerDetailTabEmpty
               title={tab.title}
@@ -172,42 +194,51 @@ export function CustomerDetailPage(): JSX.Element {
   return (
     <div className="grid max-w-240 gap-6">
       <section className="rounded-xl bg-card p-6 ring-1 ring-border">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-0">
-          <div className="grid min-w-0 content-start gap-2 lg:w-72 lg:shrink-0 lg:pr-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+          <div className="grid min-w-0 gap-1 lg:w-72 lg:shrink-0 lg:pr-8">
             <p className={fieldLabel}>고객 정보</p>
-            <h2 className="text-2xl leading-9 font-semibold text-foreground">{customer.data.name}</h2>
-            <p className="flex flex-wrap items-center gap-2">
-              <span className={fieldLabel}>전화번호</span>
-              <span className={fieldValue}>{formatCustomerPhone(customer.data.phone)}</span>
+            <h2 className="text-2xl leading-9 font-semibold text-foreground">
+              {customer.data.name}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              전화번호 {formatCustomerPhone(customer.data.phone)}
             </p>
-            <p className="flex flex-wrap items-center gap-2">
-              <span className={fieldLabel}>최근 상담</span>
-                <span className={fieldValue}>{recentConsultation}</span>
-            </p>
+            <p className="text-sm text-muted-foreground">최근 상담 {recentConsultation}</p>
           </div>
-          <div className="grid min-w-0 flex-1 gap-6 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border lg:border-l lg:border-border">
-            <div className="grid content-start gap-2 sm:px-6">
-              <p className={fieldLabel}>담당자</p>
-              {assigneeName ? (
-                <p className={fieldValue}>{assigneeName}</p>
-              ) : (
-                <Badge variant="outline" className="w-fit">
-                  미정
+          <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center lg:border-l lg:border-border lg:pl-8">
+            <div className="grid min-w-0 flex-1 gap-4 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
+              <div className="grid content-center gap-2 sm:pr-6">
+                <p className={fieldLabel}>담당자</p>
+                {assigneeName ? (
+                  <p className={fieldValue}>{assigneeName}</p>
+                ) : (
+                  <Badge variant="outline">{unassignedAssigneeLabel}</Badge>
+                )}
+              </div>
+              <div className="grid content-center gap-2 sm:px-6">
+                <p className={fieldLabel}>상담 상태</p>
+                <Badge variant={statusBadgeVariants[customer.data.status]}>
+                  {consultationStatusLabels[customer.data.status]}
                 </Badge>
-              )}
+              </div>
+              <div className="grid content-center gap-2 sm:px-6">
+                <p className={fieldLabel}>사건 단계</p>
+                <p className={fieldValue}>{customerCaseStageLabel}</p>
+              </div>
             </div>
-            <div className="grid content-start gap-2 sm:px-6">
-              <p className={fieldLabel}>상담 상태</p>
-              <p className={fieldValue}>{consultationStatusLabels[customer.data.status]}</p>
-            </div>
-            <div className="grid content-start gap-2 sm:px-6">
-              <p className={fieldLabel}>사건 단계</p>
-              <p className={fieldValue}>{customerCaseStageLabel}</p>
-            </div>
+            {customer.data.status === 'RETAINED' ? null : (
+              <div className="flex shrink-0 sm:border-l sm:border-border sm:pl-8">
+                <RetainCustomerButton customerId={customer.data.id} />
+              </div>
+            )}
           </div>
         </div>
       </section>
-      <CustomerDetailTabs customerId={customer.data.id} consultations={consultations} />
+      <CustomerDetailTabs
+        customerId={customer.data.id}
+        status={customer.data.status}
+        consultations={consultations}
+      />
     </div>
   );
 }

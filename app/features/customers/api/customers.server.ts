@@ -5,7 +5,10 @@ import {
   MAX_CUSTOMER_KEYWORD_LENGTH,
   MAX_CUSTOMER_NAME_LENGTH,
   MAX_CUSTOMER_PHONE_LENGTH,
+  MAX_INSTALLMENT_COUNT,
+  MAX_RETAIN_AMOUNT,
   MIN_CUSTOMER_PHONE_LENGTH,
+  caseTypeLabels,
 } from '~/features/customers/type';
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel, isMissingRecord } from '~/lib/error.server';
@@ -13,6 +16,7 @@ import { createSupabaseServerClient } from '~/lib/supabase.server';
 import { isUuid } from '~/lib/uuid.server';
 
 import type {
+  CaseType,
   ConsultationStatus,
   CustomerAssigneeOption,
   ConsultationCreateFieldErrors,
@@ -20,6 +24,8 @@ import type {
   CustomerCreateFieldErrors,
   CustomerDetail,
   CustomerListItem,
+  CustomerRetainFieldErrors,
+  CustomerRetainSubmission,
   CustomerSearchField,
   InflowSource,
 } from '~/features/customers/type';
@@ -54,6 +60,14 @@ const consultationStatuses: readonly ConsultationStatus[] = [
 
 const inflowSources: readonly InflowSource[] = ['HOMEPAGE', 'NAVER', 'REFERRAL', 'PHONE', 'OTHER'];
 
+const caseTypes: readonly CaseType[] = [
+  'PERSONAL_REHABILITATION',
+  'PERSONAL_BANKRUPTCY',
+  'PERSONAL_WORKOUT',
+  'FAST_DEBT_ADJUSTMENT',
+  'FRESH_START_FUND',
+];
+
 export type CustomerListQuery = {
   field: CustomerSearchField;
   keyword: string;
@@ -67,6 +81,10 @@ function isConsultationStatus(value: string): value is ConsultationStatus {
 
 function isInflowSource(value: string): value is InflowSource {
   return inflowSources.some((source) => source === value);
+}
+
+function isCaseType(value: string): value is CaseType {
+  return caseTypes.some((caseType) => caseType === value);
 }
 
 async function resolveCustomerActor(
@@ -116,10 +134,7 @@ async function customerVisibilityWhere(
   if (ledTeams.length > 0) {
     return {
       companyId: actor.companyId,
-      OR: [
-        { assignee: { teamId: { in: ledTeams.map((team) => team.id) } } },
-        { assigneeId: null },
-      ],
+      OR: [{ assignee: { teamId: { in: ledTeams.map((team) => team.id) } } }, { assigneeId: null }],
     };
   }
   return { companyId: actor.companyId, assigneeId: actor.userId };
@@ -140,10 +155,15 @@ function toCustomerListItem(customer: {
   status: string;
   nextContactOn: Date | null;
   assignee: { name: string } | null;
+  consultations: { nextContactOn: Date | null }[];
 }): CustomerListItem | null {
   if (!isInflowSource(customer.source) || !isConsultationStatus(customer.status)) {
     return null;
   }
+  const latestConsultation = customer.consultations.at(0);
+  const nextContactOn = latestConsultation
+    ? latestConsultation.nextContactOn
+    : customer.nextContactOn;
   return {
     id: customer.id,
     name: customer.name,
@@ -151,7 +171,7 @@ function toCustomerListItem(customer: {
     source: customer.source,
     status: customer.status,
     assigneeName: customer.assignee?.name ?? null,
-    nextContactOn: customer.nextContactOn ? formatContactDate(customer.nextContactOn) : null,
+    nextContactOn: nextContactOn ? formatContactDate(nextContactOn) : null,
   };
 }
 
@@ -186,6 +206,11 @@ async function readScopedCustomers(
         status: true,
         nextContactOn: true,
         assignee: { select: { name: true } },
+        consultations: {
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: { nextContactOn: true },
+        },
       },
       orderBy: [{ createdAt: 'desc' }, { name: 'asc' }],
       skip: (query.page - 1) * CUSTOMER_PAGE_SIZE,
@@ -460,6 +485,8 @@ export type CustomerStatusResult =
   | { status: 'anonymous' }
   | { status: 'forbidden' }
   | { status: 'not-found' }
+  | { status: 'invalid' }
+  | { status: 'locked' }
   | { status: 'failed' };
 
 async function readAccessibleCustomer(
@@ -538,6 +565,12 @@ export async function updateCustomerStatus(
     if (customer.status === customerStatus) {
       return { result: { status: 'ok', customerStatus }, headers };
     }
+    if (customer.status === 'RETAINED') {
+      return { result: { status: 'locked' }, headers };
+    }
+    if (customerStatus === 'RETAINED') {
+      return { result: { status: 'invalid' }, headers };
+    }
 
     const updated = await prisma.customer.update({
       where: { id: customer.id },
@@ -553,6 +586,205 @@ export async function updateCustomerStatus(
       return { result: { status: 'not-found' }, headers };
     }
     console.error('상담 상태를 변경하지 못했습니다.', errorCodeLabel(error));
+    return { result: { status: 'failed' }, headers };
+  }
+}
+
+const CONTRACT_DATE_REQUIRED_MESSAGE = '계약일을 선택하세요.';
+const CONTRACT_DATE_INVALID_MESSAGE = '계약일은 올바른 날짜로 입력하세요.';
+const CASE_TYPE_REQUIRED_MESSAGE = '사건유형을 선택하세요.';
+const RETAINER_FEE_REQUIRED_MESSAGE = '수임료를 입력하세요.';
+const RETAINER_FEE_INVALID_MESSAGE = '수임료는 0 이상 20억 원 이하의 정수로 입력하세요.';
+const DEPOSIT_REQUIRED_MESSAGE = '계약금을 입력하세요.';
+const DEPOSIT_INVALID_MESSAGE = '계약금은 0 이상 20억 원 이하의 정수로 입력하세요.';
+const INSTALLMENT_REQUIRED_MESSAGE = '분납 회수를 입력하세요.';
+const INSTALLMENT_INVALID_MESSAGE = '분납 회수는 1 이상 120 이하의 정수로 입력하세요.';
+const FIRST_PAYMENT_REQUIRED_MESSAGE = '첫 회차 납부일을 선택하세요.';
+const FIRST_PAYMENT_INVALID_MESSAGE = '첫 회차 납부일은 올바른 날짜로 입력하세요.';
+
+export type CustomerRetainResult =
+  | { status: 'ok'; customerStatus: 'RETAINED' }
+  | { status: 'anonymous' }
+  | { status: 'forbidden' }
+  | { status: 'not-found' }
+  | { status: 'invalid'; fieldErrors: CustomerRetainFieldErrors }
+  | { status: 'failed' };
+
+type RetainWrite =
+  | {
+      ok: true;
+      contractedOn: Date;
+      caseType: CaseType;
+      retainerFee: number;
+      deposit: number;
+      installmentCount: number;
+      firstPaymentOn: Date;
+    }
+  | { ok: false; fieldErrors: CustomerRetainFieldErrors };
+
+function dateFieldError(value: string, required: string, invalid: string): string | undefined {
+  if (value.trim().length < 1) {
+    return required;
+  }
+  if (parseContactDate(value) === null) {
+    return invalid;
+  }
+  return undefined;
+}
+
+function moneyFieldError(value: string, required: string, invalid: string): string | undefined {
+  if (value.trim().length < 1) {
+    return required;
+  }
+  if (!/^\d+$/.test(value)) {
+    return invalid;
+  }
+  const amount = Number(value);
+  if (!Number.isSafeInteger(amount) || amount > MAX_RETAIN_AMOUNT) {
+    return invalid;
+  }
+  return undefined;
+}
+
+function readRetainWrite(submission: CustomerRetainSubmission): RetainWrite {
+  const fieldErrors: CustomerRetainFieldErrors = {};
+  const contractedOnError = dateFieldError(
+    submission.contractedOn,
+    CONTRACT_DATE_REQUIRED_MESSAGE,
+    CONTRACT_DATE_INVALID_MESSAGE,
+  );
+  if (contractedOnError) {
+    fieldErrors.contractedOn = contractedOnError;
+  }
+  if (!isCaseType(submission.caseType)) {
+    fieldErrors.caseType = CASE_TYPE_REQUIRED_MESSAGE;
+  }
+  const retainerFeeError = moneyFieldError(
+    submission.retainerFee,
+    RETAINER_FEE_REQUIRED_MESSAGE,
+    RETAINER_FEE_INVALID_MESSAGE,
+  );
+  if (retainerFeeError) {
+    fieldErrors.retainerFee = retainerFeeError;
+  }
+  const depositError = moneyFieldError(
+    submission.deposit,
+    DEPOSIT_REQUIRED_MESSAGE,
+    DEPOSIT_INVALID_MESSAGE,
+  );
+  if (depositError) {
+    fieldErrors.deposit = depositError;
+  }
+  if (submission.installmentCount.trim().length < 1) {
+    fieldErrors.installmentCount = INSTALLMENT_REQUIRED_MESSAGE;
+  } else if (!/^\d+$/.test(submission.installmentCount)) {
+    fieldErrors.installmentCount = INSTALLMENT_INVALID_MESSAGE;
+  } else {
+    const installmentCount = Number(submission.installmentCount);
+    if (
+      !Number.isSafeInteger(installmentCount) ||
+      installmentCount < 1 ||
+      installmentCount > MAX_INSTALLMENT_COUNT
+    ) {
+      fieldErrors.installmentCount = INSTALLMENT_INVALID_MESSAGE;
+    }
+  }
+  const firstPaymentError = dateFieldError(
+    submission.firstPaymentOn,
+    FIRST_PAYMENT_REQUIRED_MESSAGE,
+    FIRST_PAYMENT_INVALID_MESSAGE,
+  );
+  if (firstPaymentError) {
+    fieldErrors.firstPaymentOn = firstPaymentError;
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    return { ok: false, fieldErrors };
+  }
+
+  const contractedOn = parseContactDate(submission.contractedOn);
+  const firstPaymentOn = parseContactDate(submission.firstPaymentOn);
+  const retainerFee = Number(submission.retainerFee);
+  const deposit = Number(submission.deposit);
+  const installmentCount = Number(submission.installmentCount);
+  if (
+    contractedOn === null ||
+    firstPaymentOn === null ||
+    !isCaseType(submission.caseType) ||
+    !Number.isSafeInteger(retainerFee) ||
+    !Number.isSafeInteger(deposit) ||
+    !Number.isSafeInteger(installmentCount)
+  ) {
+    return { ok: false, fieldErrors };
+  }
+  return {
+    ok: true,
+    contractedOn,
+    caseType: submission.caseType,
+    retainerFee,
+    deposit,
+    installmentCount,
+    firstPaymentOn,
+  };
+}
+
+export async function retainCustomer(
+  request: Request,
+  customerId: string,
+  submission: CustomerRetainSubmission,
+): Promise<{ result: CustomerRetainResult; headers: Headers }> {
+  const { actor, headers } = await resolveCustomerActor(request);
+  if (actor.status !== 'ok') {
+    return { result: actor, headers };
+  }
+
+  try {
+    const customer = await readAccessibleCustomer(actor, customerId);
+    if (!customer || !isConsultationStatus(customer.status)) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    if (customer.status === 'RETAINED') {
+      return { result: { status: 'ok', customerStatus: 'RETAINED' }, headers };
+    }
+
+    const input = readRetainWrite(submission);
+    if (!input.ok) {
+      return { result: { status: 'invalid', fieldErrors: input.fieldErrors }, headers };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.customer.updateMany({
+        where: { id: customer.id, status: { not: 'RETAINED' } },
+        data: { status: 'RETAINED' },
+      });
+      if (updated.count !== 1) {
+        return;
+      }
+      await tx.customerCase.create({
+        data: {
+          customerId: customer.id,
+          contractedOn: input.contractedOn,
+          caseType: input.caseType,
+          retainerFee: input.retainerFee,
+          deposit: input.deposit,
+          installmentCount: input.installmentCount,
+          firstPaymentOn: input.firstPaymentOn,
+        },
+      });
+      await tx.consultation.create({
+        data: {
+          customerId: customer.id,
+          content: `수임전환 - ${caseTypeLabels[input.caseType]}`,
+          nextContactOn: null,
+        },
+      });
+      await syncLatestNextContact(tx, customer.id);
+    });
+    return { result: { status: 'ok', customerStatus: 'RETAINED' }, headers };
+  } catch (error) {
+    if (isMissingRecord(error)) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    console.error('수임으로 전환하지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };
   }
 }
@@ -576,6 +808,10 @@ export type ConsultationCreateResult =
   | { status: 'not-found' }
   | { status: 'failed' };
 
+type ConsultationInput =
+  | { ok: true; content: string; nextContactOn: Date | null }
+  | { ok: false; fieldErrors: ConsultationCreateFieldErrors };
+
 function validateConsultation(
   content: string,
   nextContactOn: string | null,
@@ -591,6 +827,21 @@ function validateConsultation(
     fieldErrors.nextContactOn = NEXT_SCHEDULE_INVALID_MESSAGE;
   }
   return fieldErrors;
+}
+
+function readConsultationInput(content: string, nextContactOn: string | null): ConsultationInput {
+  const fieldErrors = validateConsultation(content, nextContactOn);
+  if (Object.keys(fieldErrors).length > 0) {
+    return { ok: false, fieldErrors };
+  }
+  const contactDate = nextContactOn === null ? null : parseContactDate(nextContactOn);
+  if (nextContactOn !== null && contactDate === null) {
+    return {
+      ok: false,
+      fieldErrors: { nextContactOn: NEXT_SCHEDULE_INVALID_MESSAGE },
+    };
+  }
+  return { ok: true, content: content.trim(), nextContactOn: contactDate };
 }
 
 export async function readConsultations(
@@ -630,6 +881,24 @@ export async function readConsultations(
   }
 }
 
+async function syncLatestNextContact(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+): Promise<void> {
+  const latest = await tx.consultation.findFirst({
+    where: { customerId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { nextContactOn: true },
+  });
+  if (!latest) {
+    return;
+  }
+  await tx.customer.update({
+    where: { id: customerId },
+    data: { nextContactOn: latest.nextContactOn },
+  });
+}
+
 export async function createConsultation(
   request: Request,
   customerId: string,
@@ -641,16 +910,9 @@ export async function createConsultation(
     return { result: actor, headers };
   }
 
-  const fieldErrors = validateConsultation(content, nextContactOn);
-  if (Object.keys(fieldErrors).length > 0) {
-    return { result: { status: 'invalid', fieldErrors }, headers };
-  }
-  const contactDate = nextContactOn === null ? null : parseContactDate(nextContactOn);
-  if (nextContactOn !== null && contactDate === null) {
-    return {
-      result: { status: 'invalid', fieldErrors: { nextContactOn: NEXT_SCHEDULE_INVALID_MESSAGE } },
-      headers,
-    };
+  const input = readConsultationInput(content, nextContactOn);
+  if (!input.ok) {
+    return { result: { status: 'invalid', fieldErrors: input.fieldErrors }, headers };
   }
 
   try {
@@ -658,17 +920,77 @@ export async function createConsultation(
     if (!customer) {
       return { result: { status: 'not-found' }, headers };
     }
-    const consultation = await prisma.consultation.create({
-      data: {
-        customerId: customer.id,
-        content: content.trim(),
-        nextContactOn: contactDate,
-      },
-      select: { id: true },
+    const consultation = await prisma.$transaction(async (tx) => {
+      const created = await tx.consultation.create({
+        data: {
+          customerId: customer.id,
+          content: input.content,
+          nextContactOn: input.nextContactOn,
+        },
+        select: { id: true },
+      });
+      await syncLatestNextContact(tx, customer.id);
+      return created;
     });
     return { result: { status: 'ok', id: consultation.id }, headers };
   } catch (error) {
     console.error('상담 이력을 등록하지 못했습니다.', errorCodeLabel(error));
+    return { result: { status: 'failed' }, headers };
+  }
+}
+
+export type ConsultationUpdateResult =
+  | { status: 'ok'; id: string }
+  | { status: 'anonymous' }
+  | { status: 'forbidden' }
+  | { status: 'invalid'; fieldErrors: ConsultationCreateFieldErrors }
+  | { status: 'not-found' }
+  | { status: 'failed' };
+
+export async function updateConsultation(
+  request: Request,
+  customerId: string,
+  consultationId: string,
+  content: string,
+  nextContactOn: string | null,
+): Promise<{ result: ConsultationUpdateResult; headers: Headers }> {
+  const { actor, headers } = await resolveCustomerActor(request);
+  if (actor.status !== 'ok') {
+    return { result: actor, headers };
+  }
+  if (!isUuid(consultationId)) {
+    return { result: { status: 'not-found' }, headers };
+  }
+
+  const input = readConsultationInput(content, nextContactOn);
+  if (!input.ok) {
+    return { result: { status: 'invalid', fieldErrors: input.fieldErrors }, headers };
+  }
+
+  try {
+    const customer = await readAccessibleCustomer(actor, customerId);
+    if (!customer) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.consultation.updateMany({
+        where: { id: consultationId, customerId: customer.id },
+        data: {
+          content: input.content,
+          nextContactOn: input.nextContactOn,
+        },
+      });
+      if (result.count === 1) {
+        await syncLatestNextContact(tx, customer.id);
+      }
+      return result;
+    });
+    if (updated.count !== 1) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    return { result: { status: 'ok', id: consultationId }, headers };
+  } catch (error) {
+    console.error('상담 이력을 수정하지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };
   }
 }

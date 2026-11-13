@@ -44,6 +44,7 @@ export function useConsultationCreateForm(customerId: string): ConsultationCreat
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.consultations(customerId),
       });
+      void queryClient.invalidateQueries({ queryKey: customerQueryKeys.lists() });
       setOpen(false);
       resetFields();
       toast('상담 이력을 등록했습니다.');

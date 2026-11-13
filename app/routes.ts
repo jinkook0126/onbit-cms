@@ -30,7 +30,12 @@ export default [
   route('api/account', 'routes/api.account.ts'),
   route('api/customers', 'routes/api.customers.ts'),
   route('api/customers/assignees', 'routes/api.customer-assignees.ts'),
+  route(
+    'api/customers/:customerId/consultations/:consultationId',
+    'routes/api.customer-consultation.ts',
+  ),
   route('api/customers/:customerId/consultations', 'routes/api.customer-consultations.ts'),
+  route('api/customers/:customerId/retain', 'routes/api.customer-retain.ts'),
   route('api/customers/:customerId', 'routes/api.customer.ts'),
   route('api/companies', 'routes/api.companies.ts'),
   route('api/companies/:companyId', 'routes/api.company.ts'),

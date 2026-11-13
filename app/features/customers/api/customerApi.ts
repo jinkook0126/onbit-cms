@@ -5,6 +5,7 @@ import {
   isCustomerCreateResponse,
   isCustomerDetail,
   isCustomerListResponse,
+  isCustomerRetainResponse,
   isCustomerStatusResponse,
 } from '~/features/customers/type';
 import { ApiError, apiClient } from '~/lib/apiClient';
@@ -19,6 +20,8 @@ import type {
   CustomerDetail,
   CustomerListParams,
   CustomerListResponse,
+  CustomerRetainResponse,
+  CustomerRetainSubmission,
   CustomerStatusResponse,
   CustomerStatusSubmission,
 } from '~/features/customers/type';
@@ -94,6 +97,20 @@ export async function requestCustomerStatusUpdate(
   return result.body;
 }
 
+export async function requestCustomerRetain(
+  customerId: string,
+  submission: CustomerRetainSubmission,
+): Promise<CustomerRetainResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/retain`, {
+    method: 'POST',
+    body: submission,
+  });
+  if (!isCustomerRetainResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
 function customerConsultationsPath(customerId: string): string {
   return `${customerPath(customerId)}/consultations`;
 }
@@ -115,6 +132,25 @@ export async function requestConsultationCreate(
 ): Promise<ConsultationCreateResponse> {
   const result = await apiClient(customerConsultationsPath(customerId), {
     method: 'POST',
+    body: submission,
+  });
+  if (!isConsultationCreateResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+function customerConsultationPath(customerId: string, consultationId: string): string {
+  return `${customerConsultationsPath(customerId)}/${encodeURIComponent(consultationId)}`;
+}
+
+export async function requestConsultationUpdate(
+  customerId: string,
+  consultationId: string,
+  submission: ConsultationCreateSubmission,
+): Promise<ConsultationCreateResponse> {
+  const result = await apiClient(customerConsultationPath(customerId, consultationId), {
+    method: 'PATCH',
     body: submission,
   });
   if (!isConsultationCreateResponse(result.body)) {

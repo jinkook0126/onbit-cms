@@ -40,6 +40,22 @@ enum ConsultationStatus {
   @@map("consultation_status")
 }
 
+/// 수임 사건의 유형. 화면에서 고르는 고정 목록이다.
+enum CaseType {
+  /// 개인회생
+  PERSONAL_REHABILITATION
+  /// 개인파산
+  PERSONAL_BANKRUPTCY
+  /// 개인워크아웃
+  PERSONAL_WORKOUT
+  /// 신속채무조정
+  FAST_DEBT_ADJUSTMENT
+  /// 새출발기금
+  FRESH_START_FUND
+
+  @@map("case_type")
+}
+
 /// 상담 고객이 들어온 경로. 화면에서 고르는 고정 목록이다.
 enum InflowSource {
   /// 홈페이지
@@ -142,6 +158,7 @@ model Customer {
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   assignee      User?          @relation("CustomerAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   consultations Consultation[]
+  customerCase  CustomerCase?
 
   @@index([companyId])
   @@index([assigneeId])
@@ -164,4 +181,27 @@ model Consultation {
 
   @@index([customerId, createdAt])
   @@map("consultations")
+}
+
+/// 수임으로 전환할 때 만드는 사건. 고객당 하나다.
+model CustomerCase {
+  id               String   @id @default(uuid()) @db.Uuid
+  customerId       String   @unique @map("customer_id") @db.Uuid
+  /// 계약일.
+  contractedOn     DateTime @map("contracted_on") @db.Date
+  caseType         CaseType @map("case_type")
+  /// 수임료. 원 단위 정수.
+  retainerFee      Int      @map("retainer_fee")
+  /// 계약금. 원 단위 정수.
+  deposit          Int
+  /// 분납 회수.
+  installmentCount Int      @map("installment_count")
+  /// 첫 회차 납부일.
+  firstPaymentOn   DateTime @map("first_payment_on") @db.Date
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@map("customer_cases")
 }

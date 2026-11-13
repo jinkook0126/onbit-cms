@@ -4,6 +4,8 @@ export const MAX_CUSTOMER_NAME_LENGTH = 30;
 export const MIN_CUSTOMER_PHONE_LENGTH = 8;
 export const MAX_CUSTOMER_PHONE_LENGTH = 12;
 export const MAX_CONSULTATION_CONTENT_LENGTH = 1000;
+export const MAX_RETAIN_AMOUNT = 2_000_000_000;
+export const MAX_INSTALLMENT_COUNT = 120;
 
 export function customerPhoneDigits(value: string): string {
   return value.replace(/\D/g, '').slice(0, MAX_CUSTOMER_PHONE_LENGTH);
@@ -53,6 +55,14 @@ export const consultationStatusLabels = {
   RETAINED: '수임',
 } as const;
 
+export const caseTypeLabels = {
+  PERSONAL_REHABILITATION: '개인회생',
+  PERSONAL_BANKRUPTCY: '개인파산',
+  PERSONAL_WORKOUT: '개인워크아웃',
+  FAST_DEBT_ADJUSTMENT: '신속채무조정',
+  FRESH_START_FUND: '새출발기금',
+} as const;
+
 export const inflowSourceLabels = {
   HOMEPAGE: '홈페이지',
   NAVER: '네이버',
@@ -67,6 +77,7 @@ export const customerSearchFieldLabels = {
 } as const;
 
 export type ConsultationStatus = keyof typeof consultationStatusLabels;
+export type CaseType = keyof typeof caseTypeLabels;
 export type InflowSource = keyof typeof inflowSourceLabels;
 export type CustomerSearchField = keyof typeof customerSearchFieldLabels;
 
@@ -217,6 +228,30 @@ export type CustomerStatusResponse = {
   formError?: string;
 };
 
+export type CustomerRetainFieldErrors = {
+  contractedOn?: string;
+  caseType?: string;
+  retainerFee?: string;
+  deposit?: string;
+  installmentCount?: string;
+  firstPaymentOn?: string;
+};
+
+export type CustomerRetainSubmission = {
+  contractedOn: string;
+  caseType: string;
+  retainerFee: string;
+  deposit: string;
+  installmentCount: string;
+  firstPaymentOn: string;
+};
+
+export type CustomerRetainResponse = {
+  status?: ConsultationStatus;
+  fieldErrors?: CustomerRetainFieldErrors;
+  formError?: string;
+};
+
 export function isCustomerStatusSubmission(value: unknown): value is CustomerStatusSubmission {
   return isRecord(value) && isConsultationStatus(value.status);
 }
@@ -355,6 +390,47 @@ export function isCustomerCreateResponse(value: unknown): value is CustomerCreat
     return false;
   }
   if (value.fieldErrors !== undefined && !isCustomerCreateFieldErrors(value.fieldErrors)) {
+    return false;
+  }
+  return true;
+}
+
+const customerRetainErrorKeys = [
+  'contractedOn',
+  'caseType',
+  'retainerFee',
+  'deposit',
+  'installmentCount',
+  'firstPaymentOn',
+] as const;
+
+function isCustomerRetainFieldErrors(value: unknown): value is CustomerRetainFieldErrors {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return customerRetainErrorKeys.every(
+    (key) => value[key] === undefined || typeof value[key] === 'string',
+  );
+}
+
+export function isCustomerRetainSubmission(value: unknown): value is CustomerRetainSubmission {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return customerRetainErrorKeys.every((key) => typeof value[key] === 'string');
+}
+
+export function isCustomerRetainResponse(value: unknown): value is CustomerRetainResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.status !== undefined && !isConsultationStatus(value.status)) {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  if (value.fieldErrors !== undefined && !isCustomerRetainFieldErrors(value.fieldErrors)) {
     return false;
   }
   return true;
