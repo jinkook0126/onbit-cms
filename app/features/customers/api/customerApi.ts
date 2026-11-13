@@ -51,8 +51,8 @@ const customerAssigneesApiPath = '/api/customers/assignees';
 
 function customersPath(params: CustomerListParams): string {
   const search = new URLSearchParams();
-  if (params.field === 'phone') {
-    search.set('field', 'phone');
+  if (params.field !== 'name') {
+    search.set('field', params.field);
   }
   if (params.keyword !== '') {
     search.set('q', params.keyword);

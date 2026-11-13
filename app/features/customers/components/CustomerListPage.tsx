@@ -55,10 +55,10 @@ export function CustomerListPage(): JSX.Element {
 
   function searchCustomers(nextField: CustomerSearchField, nextKeyword: string): void {
     replaceParams((params) => {
-      if (nextField === 'phone') {
-        params.set('field', 'phone');
-      } else {
+      if (nextField === 'name') {
         params.delete('field');
+      } else {
+        params.set('field', nextField);
       }
       const query = nextField === 'phone' ? customerPhoneDigits(nextKeyword) : nextKeyword;
       if (query === '') {

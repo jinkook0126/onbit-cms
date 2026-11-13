@@ -14,6 +14,7 @@ import {
   MAX_CUSTOMER_KEYWORD_LENGTH,
   customerPhoneDigits,
   customerSearchFieldLabels,
+  isCustomerSearchField,
 } from '~/features/customers/type';
 import { fieldLabel } from '~/lib/styles';
 
@@ -27,6 +28,16 @@ type CustomerSearchFormProps = {
 };
 
 const searchFields = Object.keys(customerSearchFieldLabels) as CustomerSearchField[];
+
+function keywordPlaceholder(field: CustomerSearchField): string {
+  if (field === 'phone') {
+    return '01012345678';
+  }
+  if (field === 'assignee') {
+    return '담당 이름을 입력하세요';
+  }
+  return '이름을 입력하세요';
+}
 
 export function CustomerSearchForm({
   field,
@@ -50,11 +61,12 @@ export function CustomerSearchForm({
         <Select
           value={draftField}
           onValueChange={(value) => {
-            if (value === 'name' || value === 'phone') {
-              setDraftField(value);
-              if (value === 'phone') {
-                setDraftKeyword((current) => customerPhoneDigits(current));
-              }
+            if (!isCustomerSearchField(value)) {
+              return;
+            }
+            setDraftField(value);
+            if (value === 'phone') {
+              setDraftKeyword((current) => customerPhoneDigits(current));
             }
           }}
         >
@@ -79,7 +91,7 @@ export function CustomerSearchForm({
           value={draftKeyword}
           maxLength={MAX_CUSTOMER_KEYWORD_LENGTH}
           inputMode={draftField === 'phone' ? 'numeric' : undefined}
-          placeholder={draftField === 'phone' ? '01012345678' : '이름을 입력하세요'}
+          placeholder={keywordPlaceholder(draftField)}
           onChange={(event) => {
             const nextValue = event.currentTarget.value.slice(0, MAX_CUSTOMER_KEYWORD_LENGTH);
             setDraftKeyword(draftField === 'phone' ? customerPhoneDigits(nextValue) : nextValue);

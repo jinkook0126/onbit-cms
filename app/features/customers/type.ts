@@ -93,6 +93,7 @@ export const inflowSourceLabels = {
 export const customerSearchFieldLabels = {
   name: '이름',
   phone: '전화번호',
+  assignee: '담당',
 } as const;
 
 export type ConsultationStatus = keyof typeof consultationStatusLabels;
@@ -856,12 +857,16 @@ export function customerFormError(value: unknown): string | undefined {
   return value.formError;
 }
 
+export function isCustomerSearchField(value: string): value is CustomerSearchField {
+  return Object.keys(customerSearchFieldLabels).includes(value);
+}
+
 export function parseCustomerSearchField(value: string | null): CustomerSearchField | null {
-  if (value === null || value === 'name') {
+  if (value === null) {
     return 'name';
   }
-  if (value === 'phone') {
-    return 'phone';
+  if (isCustomerSearchField(value)) {
+    return value;
   }
   return null;
 }

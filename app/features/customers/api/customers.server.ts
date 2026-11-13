@@ -161,6 +161,20 @@ async function customerVisibilityWhere(
   return { companyId: actor.companyId, assigneeId: actor.userId };
 }
 
+function keywordWhere(field: CustomerSearchField, keyword: string): Prisma.CustomerWhereInput {
+  if (field === 'name') {
+    return { name: { contains: keyword, mode: 'insensitive' } };
+  }
+  if (field === 'phone') {
+    return { phone: { contains: keyword.replace(/\D/g, '') || keyword } };
+  }
+  return {
+    assignee: {
+      is: { name: { contains: keyword, mode: 'insensitive' } },
+    },
+  };
+}
+
 function seoulToday(): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',
@@ -213,16 +227,7 @@ async function readScopedCustomers(
   const where: Prisma.CustomerWhereInput = {
     ...visibility,
     ...(query.status ? { status: query.status } : {}),
-    ...(keyword && query.field === 'name'
-      ? { name: { contains: keyword, mode: 'insensitive' } }
-      : {}),
-    ...(keyword && query.field === 'phone'
-      ? {
-          phone: {
-            contains: keyword.replace(/\D/g, '') || keyword,
-          },
-        }
-      : {}),
+    ...(keyword ? keywordWhere(query.field, keyword) : {}),
   };
   const [total, rows] = await prisma.$transaction([
     prisma.customer.count({ where }),
