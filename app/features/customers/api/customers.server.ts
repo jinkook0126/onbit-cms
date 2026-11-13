@@ -1,4 +1,7 @@
-import { resolveSession } from '~/features/auth/api/auth.server';
+import {
+  customerVisibilityWhere,
+  resolveCustomerActor,
+} from '~/features/customers/api/customerScope.server';
 import {
   CUSTOMER_PAGE_SIZE,
   MAX_CASE_NEXT_TASK_LENGTH,
@@ -20,9 +23,9 @@ import {
 } from '~/features/customers/type';
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel, isMissingRecord } from '~/lib/error.server';
-import { createSupabaseServerClient } from '~/lib/supabase.server';
 import { isUuid } from '~/lib/uuid.server';
 
+import type { CustomerActor } from '~/features/customers/api/customerScope.server';
 import type {
   CaseProgress,
   CaseProgressUpdateFieldErrors,
@@ -65,12 +68,6 @@ export type CustomerListResult =
   | { status: 'not-found' }
   | { status: 'failed' };
 
-type CustomerActor =
-  | { status: 'ok'; role: 'COMPANY_ADMIN'; companyId: string; userId: string }
-  | { status: 'ok'; role: 'EMPLOYEE'; companyId: string; userId: string }
-  | { status: 'anonymous' }
-  | { status: 'forbidden' };
-
 const consultationStatuses: readonly ConsultationStatus[] = [
   'IN_CONSULTATION',
   'CONSIDERING',
@@ -106,59 +103,6 @@ function isInflowSource(value: string): value is InflowSource {
 
 function isCaseType(value: string): value is CaseType {
   return caseTypes.some((caseType) => caseType === value);
-}
-
-async function resolveCustomerActor(
-  request: Request,
-): Promise<{ actor: CustomerActor; headers: Headers }> {
-  const { supabase, headers } = createSupabaseServerClient(request);
-  const session = await resolveSession(supabase);
-  if (session.status !== 'authenticated') {
-    return { actor: { status: 'anonymous' }, headers };
-  }
-  if (session.user.role === 'SUPER_ADMIN' || !session.user.companyId) {
-    return { actor: { status: 'forbidden' }, headers };
-  }
-  if (session.user.role === 'COMPANY_ADMIN') {
-    return {
-      actor: {
-        status: 'ok',
-        role: 'COMPANY_ADMIN',
-        companyId: session.user.companyId,
-        userId: session.user.id,
-      },
-      headers,
-    };
-  }
-  return {
-    actor: {
-      status: 'ok',
-      role: 'EMPLOYEE',
-      companyId: session.user.companyId,
-      userId: session.user.id,
-    },
-    headers,
-  };
-}
-
-async function customerVisibilityWhere(
-  actor: Extract<CustomerActor, { status: 'ok' }>,
-): Promise<Prisma.CustomerWhereInput> {
-  if (actor.role === 'COMPANY_ADMIN') {
-    return { companyId: actor.companyId };
-  }
-
-  const ledTeams = await prisma.team.findMany({
-    where: { companyId: actor.companyId, leaderId: actor.userId },
-    select: { id: true },
-  });
-  if (ledTeams.length > 0) {
-    return {
-      companyId: actor.companyId,
-      OR: [{ assignee: { teamId: { in: ledTeams.map((team) => team.id) } } }, { assigneeId: null }],
-    };
-  }
-  return { companyId: actor.companyId, assigneeId: actor.userId };
 }
 
 function keywordWhere(field: CustomerSearchField, keyword: string): Prisma.CustomerWhereInput {

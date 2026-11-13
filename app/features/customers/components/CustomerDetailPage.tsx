@@ -1,5 +1,5 @@
 import { BookOpenIcon, ListChecksIcon, MessagesSquareIcon, ReceiptTextIcon } from 'lucide-react';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 
 import { Badge } from '~/components/ui/badge';
 import { Skeleton } from '~/components/ui/skeleton';
@@ -19,6 +19,8 @@ import { useCustomerDetail } from '~/features/customers/hooks/useCustomerDetail'
 import {
   caseProgressStageLabels,
   consultationStatusLabels,
+  customerCaseProgressTab,
+  customerConsultationTab,
   customerFormError,
   formatCustomerPhone,
 } from '~/features/customers/type';
@@ -62,7 +64,7 @@ const customerDetailTabs: CustomerDetailTab[] = [
     icon: ReceiptTextIcon,
   },
   {
-    value: 'consultations',
+    value: customerConsultationTab,
     label: '상담이력',
     title: '상담 이력 영역',
     description:
@@ -70,7 +72,7 @@ const customerDetailTabs: CustomerDetailTab[] = [
     icon: MessagesSquareIcon,
   },
   {
-    value: 'case-progress',
+    value: customerCaseProgressTab,
     label: '사건진행',
     title: '사건 진행 영역',
     description: '사건 단계와 진행 내용을 기록하는 영역입니다. 수임 전환 후 입력하실 수 있습니다.',
@@ -151,16 +153,25 @@ function renderCustomerDetailTab(
 type CustomerDetailTabsProps = {
   customerId: string;
   status: ConsultationStatus;
+  tab: string;
   consultations: UseQueryResult<ConsultationListResponse>;
 };
+
+function customerDetailTab(value: string | null): string {
+  if (value !== null && customerDetailTabs.some((tab) => tab.value === value)) {
+    return value;
+  }
+  return customerDetailTabs[0].value;
+}
 
 function CustomerDetailTabs({
   customerId,
   status,
+  tab,
   consultations,
 }: CustomerDetailTabsProps): JSX.Element {
   return (
-    <Tabs defaultValue={customerDetailTabs[0].value} className="gap-4">
+    <Tabs key={tab} defaultValue={tab} className="gap-4">
       <TabsList variant="line">
         {customerDetailTabs.map((tab) => {
           const Icon = tab.icon;
@@ -202,7 +213,9 @@ function CustomerCaseStage({
 
 export function CustomerDetailPage(): JSX.Element {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const customerId = params.customerId ?? '';
+  const detailTab = customerDetailTab(searchParams.get('tab'));
   const customer = useCustomerDetail(customerId);
   const caseProgress = useCustomerCaseProgress(customerId, customer.data?.status === 'RETAINED');
   const consultations = useCustomerConsultations(customerId, customer.isSuccess);
@@ -283,6 +296,7 @@ export function CustomerDetailPage(): JSX.Element {
       <CustomerDetailTabs
         customerId={customer.data.id}
         status={customer.data.status}
+        tab={detailTab}
         consultations={consultations}
       />
     </div>

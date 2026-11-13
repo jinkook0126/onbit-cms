@@ -7,9 +7,9 @@ export default [
       index('routes/customers-index.tsx', { id: 'customers-index' }),
       route(':customerId', 'routes/customer.tsx', { id: 'customer' }),
     ]),
-    route('cases', 'routes/section.tsx', { id: 'cases' }),
+    route('cases', 'routes/cases.tsx', { id: 'cases' }),
     route('receivables', 'routes/section.tsx', { id: 'receivables' }),
-    route('settlements', 'routes/section.tsx', { id: 'settlements' }),
+    route('settlements', 'routes/settlements.tsx', { id: 'settlements' }),
     route('settings', 'routes/settings.tsx', { id: 'settings' }, [
       index('routes/settings-index.tsx', { id: 'settings-index' }),
       route('companies', 'routes/settings-companies.tsx', { id: 'settings-companies' }, [
@@ -28,6 +28,8 @@ export default [
   route('api/login', 'routes/api.login.ts'),
   route('api/logout', 'routes/api.logout.ts'),
   route('api/account', 'routes/api.account.ts'),
+  route('api/cases', 'routes/api.cases.ts'),
+  route('api/settlements', 'routes/api.settlements.ts'),
   route('api/customers', 'routes/api.customers.ts'),
   route('api/customers/assignees', 'routes/api.customer-assignees.ts'),
   route(
