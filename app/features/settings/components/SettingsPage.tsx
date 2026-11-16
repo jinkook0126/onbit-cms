@@ -1,16 +1,23 @@
 import { ArrowRightIcon } from 'lucide-react';
 import { Link } from 'react-router';
 
-import { settingsNavSections } from '~/features/settings/nav';
+import { visibleSettingsNavSections } from '~/features/settings/nav';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX } from 'react';
+import type { ShellRole } from '~/features/shell/type';
 
-export function SettingsPage(): JSX.Element {
+type SettingsPageProps = {
+  role: ShellRole;
+};
+
+export function SettingsPage({ role }: SettingsPageProps): JSX.Element {
+  const sections = visibleSettingsNavSections(role);
+
   return (
     <div className="flex max-w-240 flex-col gap-8">
-      {settingsNavSections.map((section) => (
+      {sections.map((section) => (
         <section key={section.id} className="flex flex-col gap-3" aria-labelledby={section.id}>
           <h2 id={section.id} className="text-sm font-medium text-foreground">
             {section.label}
