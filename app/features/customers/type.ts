@@ -90,6 +90,10 @@ export const inflowSourceLabels = {
   OTHER: '기타',
 } as const;
 
+export const customerInstallmentTab = 'installments';
+export const customerConsultationTab = 'consultations';
+export const customerCaseProgressTab = 'case-progress';
+
 export const customerSearchFieldLabels = {
   name: '이름',
   phone: '전화번호',

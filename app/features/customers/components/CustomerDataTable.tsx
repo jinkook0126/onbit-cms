@@ -21,6 +21,7 @@ import {
 import {
   CUSTOMER_PAGE_SIZE,
   consultationStatusLabels,
+  customerConsultationTab,
   formatCustomerPhone,
   inflowSourceLabels,
 } from '~/features/customers/type';
@@ -94,6 +95,10 @@ function stopRowNavigation(event: { stopPropagation: () => void }): void {
   event.stopPropagation();
 }
 
+function customerConsultationPath(customerId: string): string {
+  return `/customers/${customerId}?tab=${customerConsultationTab}`;
+}
+
 const customerColumns = columnHelper.columns([
   columnHelper.display({
     id: 'select',
@@ -126,7 +131,7 @@ const customerColumns = columnHelper.columns([
     header: '고객이름',
     cell: (context) => (
       <Link
-        to={`/customers/${context.row.original.id}`}
+        to={customerConsultationPath(context.row.original.id)}
         className={cn('rounded-sm text-foreground', focusRing)}
       >
         {context.getValue()}
@@ -185,7 +190,7 @@ export function CustomerDataTable({
     if (event.target instanceof Element && event.target.closest('a, button, [role="checkbox"]')) {
       return;
     }
-    void navigate(`/customers/${customerId}`);
+    void navigate(customerConsultationPath(customerId));
   }
   const table = useTable(
     {
