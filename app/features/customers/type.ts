@@ -90,6 +90,7 @@ export const inflowSourceLabels = {
   OTHER: '기타',
 } as const;
 
+export const customerInstallmentTab = 'installments';
 export const customerConsultationTab = 'consultations';
 export const customerCaseProgressTab = 'case-progress';
 

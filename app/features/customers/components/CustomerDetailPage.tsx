@@ -22,6 +22,7 @@ import {
   customerCaseProgressTab,
   customerConsultationTab,
   customerFormError,
+  customerInstallmentTab,
   formatCustomerPhone,
 } from '~/features/customers/type';
 import { ApiError } from '~/lib/apiClient';
@@ -57,7 +58,7 @@ type CustomerDetailTab = {
 
 const customerDetailTabs: CustomerDetailTab[] = [
   {
-    value: 'installments',
+    value: customerInstallmentTab,
     label: '분납내역',
     title: '분납 내역 영역',
     description: '분납 일정과 납부 내용을 기록하는 영역입니다. 수임 전환 후 입력하실 수 있습니다.',

@@ -2,13 +2,13 @@ import { type RouteConfig, index, layout, route } from '@react-router/dev/routes
 
 export default [
   layout('routes/authenticated.tsx', [
-    index('routes/section.tsx', { id: 'today' }),
+    index('routes/today.tsx', { id: 'today' }),
     route('customers', 'routes/customers.tsx', { id: 'customers' }, [
       index('routes/customers-index.tsx', { id: 'customers-index' }),
       route(':customerId', 'routes/customer.tsx', { id: 'customer' }),
     ]),
     route('cases', 'routes/cases.tsx', { id: 'cases' }),
-    route('receivables', 'routes/section.tsx', { id: 'receivables' }),
+    route('receivables', 'routes/receivables.tsx', { id: 'receivables' }),
     route('settlements', 'routes/settlements.tsx', { id: 'settlements' }),
     route('settings', 'routes/settings.tsx', { id: 'settings' }, [
       index('routes/settings-index.tsx', { id: 'settings-index' }),
@@ -29,7 +29,9 @@ export default [
   route('api/logout', 'routes/api.logout.ts'),
   route('api/account', 'routes/api.account.ts'),
   route('api/cases', 'routes/api.cases.ts'),
+  route('api/receivables', 'routes/api.receivables.ts'),
   route('api/settlements', 'routes/api.settlements.ts'),
+  route('api/today', 'routes/api.today.ts'),
   route('api/customers', 'routes/api.customers.ts'),
   route('api/customers/assignees', 'routes/api.customer-assignees.ts'),
   route(
