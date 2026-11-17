@@ -1,6 +1,6 @@
 import { createCompanyMaster } from '~/features/companies/api/companies.server';
 import { isCompanyMasterSubmission } from '~/features/companies/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.company-master';
 
@@ -10,17 +10,6 @@ const FORBIDDEN_MESSAGE = '회사를 관리할 권한이 없습니다.';
 const NOT_FOUND_MESSAGE = '회사를 찾을 수 없습니다.';
 const CONFLICT_MESSAGE = '이미 마스터 계정이 있습니다.';
 const CREATE_FAILED_MESSAGE = '마스터 계정을 만들지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export function loader(): Response {
   return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 405);

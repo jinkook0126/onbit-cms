@@ -4,8 +4,7 @@ import { Badge } from '~/components/ui/badge';
 import { Skeleton } from '~/components/ui/skeleton';
 import { CompanyCreateDialog } from '~/features/companies/components/CompanyCreateDialog';
 import { useCompanyList } from '~/features/companies/hooks/useCompanyList';
-import { companyFormError } from '~/features/companies/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -26,13 +25,6 @@ function CompanyListSkeleton(): JSX.Element {
       <Skeleton className="h-40 w-full" />
     </div>
   );
-}
-
-function companyListErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return companyFormError(error.body) ?? '회사 목록을 불러오지 못했습니다.';
-  }
-  return '회사 목록을 불러오지 못했습니다.';
 }
 
 function CompanyStatusBadge({ isActive }: { isActive: boolean }): JSX.Element {
@@ -84,7 +76,7 @@ export function CompanyListPage(): JSX.Element {
   if (companies.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {companyListErrorMessage(companies.error)}
+        {readQueryError(companies.error, '회사 목록을 불러오지 못했습니다.')}
       </p>
     );
   }

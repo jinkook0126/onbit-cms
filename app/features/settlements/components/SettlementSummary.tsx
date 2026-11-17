@@ -1,3 +1,4 @@
+import { formatWon } from '~/lib/money';
 import { fieldLabel, fieldValue } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -8,17 +9,11 @@ type SettlementSummaryProps = {
   settlement: Pick<SettlementResponse, 'paymentTotal' | 'refundTotal' | 'netTotal'>;
 };
 
-const wonFormat = new Intl.NumberFormat('ko-KR');
-
 const summaryFields = [
   { key: 'paymentTotal', label: '수납합계' },
   { key: 'refundTotal', label: '환불합계' },
   { key: 'netTotal', label: '순수납' },
 ] as const;
-
-function formatWon(amount: number): string {
-  return `${wonFormat.format(amount)}원`;
-}
 
 export function SettlementSummary({ settlement }: SettlementSummaryProps): JSX.Element {
   return (

@@ -102,10 +102,3 @@ export function isTodayWork(value: unknown): value is TodayWork {
     value.overdueInstallments.every(isTodayOverdueInstallment)
   );
 }
-
-export function todayWorkError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
-}

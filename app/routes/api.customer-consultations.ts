@@ -1,6 +1,9 @@
-import { createConsultation, readConsultations } from '~/features/customers/api/customers.server';
+import {
+  createConsultation,
+  readConsultations,
+} from '~/features/customers/api/customerConsultations.server';
 import { isConsultationCreateSubmission } from '~/features/customers/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.customer-consultations';
 
@@ -11,17 +14,6 @@ const CREATE_FORBIDDEN_MESSAGE = '상담 이력을 등록할 권한이 없습니
 const NOT_FOUND_MESSAGE = '상담 고객을 찾을 수 없습니다.';
 const READ_FAILED_MESSAGE = '상담 이력을 불러오지 못했습니다. 다시 시도하세요.';
 const CREATE_FAILED_MESSAGE = '상담 이력을 등록하지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export async function loader({ request, params }: Route.LoaderArgs): Promise<Response> {
   if (request.method !== 'GET') {

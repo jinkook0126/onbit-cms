@@ -1,23 +1,12 @@
 import { readAccount, updateAccountName } from '~/features/settings/api/account.server';
 import { isAccountNameSubmission } from '~/features/settings/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.account';
 
 const INVALID_REQUEST_MESSAGE = '계정 정보를 처리하지 못했습니다. 다시 시도하세요.';
 const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const NAME_FAILED_MESSAGE = '이름을 변경하지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
   if (request.method !== 'GET') {

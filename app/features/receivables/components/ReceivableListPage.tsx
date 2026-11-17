@@ -4,21 +4,14 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { ReceivableDataTable } from '~/features/receivables/components/ReceivableDataTable';
 import { ReceivableSearchForm } from '~/features/receivables/components/ReceivableSearchForm';
 import { useReceivableList } from '~/features/receivables/hooks/useReceivableList';
-import { parseReceivableSearchField, receivableFormError } from '~/features/receivables/type';
-import { ApiError } from '~/lib/apiClient';
+import { parseReceivableSearchField } from '~/features/receivables/type';
+import { readQueryError } from '~/lib/formError';
 
 import type { JSX } from 'react';
 import type { ReceivableSearchField } from '~/features/receivables/type';
 
 function ReceivableListSkeleton(): JSX.Element {
   return <Skeleton className="h-80 w-full" aria-hidden="true" />;
-}
-
-function receivableListErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return receivableFormError(error.body) ?? '분납 목록을 불러오지 못했습니다.';
-  }
-  return '분납 목록을 불러오지 못했습니다.';
 }
 
 function readPage(value: string | null): number {
@@ -80,7 +73,7 @@ export function ReceivableListPage(): JSX.Element {
   } else if (receivables.isError) {
     listBody = (
       <p role="alert" className="text-sm text-destructive">
-        {receivableListErrorMessage(receivables.error)}
+        {readQueryError(receivables.error, '분납 목록을 불러오지 못했습니다.')}
       </p>
     );
   } else {

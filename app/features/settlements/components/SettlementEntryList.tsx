@@ -8,6 +8,7 @@ import {
   TableRow,
 } from '~/components/ui/table';
 import { ledgerEntryKindLabels, paymentMethodLabels } from '~/features/customers/type';
+import { formatWon } from '~/lib/money';
 
 import type { JSX } from 'react';
 import type { LedgerEntryKind } from '~/features/customers/type';
@@ -17,16 +18,10 @@ type SettlementEntryListProps = {
   entries: SettlementEntry[];
 };
 
-const wonFormat = new Intl.NumberFormat('ko-KR');
-
 const ledgerKindVariants: Record<LedgerEntryKind, 'default' | 'destructive'> = {
   PAYMENT: 'default',
   REFUND: 'destructive',
 };
-
-function formatWon(amount: number): string {
-  return `${wonFormat.format(amount)}원`;
-}
 
 export function SettlementEntryList({ entries }: SettlementEntryListProps): JSX.Element {
   if (entries.length === 0) {

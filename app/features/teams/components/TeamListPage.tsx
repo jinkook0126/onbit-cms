@@ -13,8 +13,7 @@ import {
 import { Skeleton } from '~/components/ui/skeleton';
 import { TeamCreateDialog } from '~/features/teams/components/TeamCreateDialog';
 import { useTeamList } from '~/features/teams/hooks/useTeamList';
-import { teamFormError } from '~/features/teams/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -35,13 +34,6 @@ function TeamListSkeleton(): JSX.Element {
       <Skeleton className="h-40 w-full" />
     </div>
   );
-}
-
-function teamListErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return teamFormError(error.body) ?? '팀 목록을 불러오지 못했습니다.';
-  }
-  return '팀 목록을 불러오지 못했습니다.';
 }
 
 function TeamStatusBadge({ isActive }: { isActive: boolean }): JSX.Element {
@@ -117,7 +109,7 @@ export function TeamListPage(): JSX.Element {
   if (teams.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {teamListErrorMessage(teams.error)}
+        {readQueryError(teams.error, '팀 목록을 불러오지 못했습니다.')}
       </p>
     );
   }

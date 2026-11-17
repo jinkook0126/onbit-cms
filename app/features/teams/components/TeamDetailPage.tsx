@@ -4,8 +4,7 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { TeamLeaderForm } from '~/features/teams/components/TeamLeaderForm';
 import { TeamNameForm } from '~/features/teams/components/TeamNameForm';
 import { useTeamDetail } from '~/features/teams/hooks/useTeamDetail';
-import { teamFormError } from '~/features/teams/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 
 import type { JSX } from 'react';
 
@@ -18,13 +17,6 @@ function TeamDetailSkeleton(): JSX.Element {
       <Skeleton className="h-10 w-24" />
     </div>
   );
-}
-
-function teamDetailErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return teamFormError(error.body) ?? '팀 정보를 불러오지 못했습니다.';
-  }
-  return '팀 정보를 불러오지 못했습니다.';
 }
 
 export function TeamDetailPage(): JSX.Element {
@@ -47,7 +39,7 @@ export function TeamDetailPage(): JSX.Element {
   if (team.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {teamDetailErrorMessage(team.error)}
+        {readQueryError(team.error, '팀 정보를 불러오지 못했습니다.')}
       </p>
     );
   }

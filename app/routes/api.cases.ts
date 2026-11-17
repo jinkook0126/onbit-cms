@@ -5,7 +5,7 @@ import {
   parseCaseSearchField,
 } from '~/features/cases/type';
 import { MAX_CUSTOMER_KEYWORD_LENGTH } from '~/features/customers/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { CaseListQuery } from '~/features/cases/api/cases.server';
 import type { Route } from './+types/api.cases';
@@ -15,17 +15,6 @@ const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const FORBIDDEN_MESSAGE = '사건을 볼 권한이 없습니다.';
 const NOT_FOUND_MESSAGE = '회사를 찾을 수 없습니다.';
 const READ_FAILED_MESSAGE = '사건 목록을 불러오지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 function parsePage(value: string | null): number | null {
   if (value === null) {

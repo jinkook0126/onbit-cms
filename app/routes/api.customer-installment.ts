@@ -1,9 +1,9 @@
-import { updateInstallmentPromise } from '~/features/customers/api/customers.server';
+import { updateInstallmentPromise } from '~/features/customers/api/customerInstallments.server';
 import {
   INSTALLMENT_ALREADY_PAID_MESSAGE,
   isInstallmentPromiseSubmission,
 } from '~/features/customers/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.customer-installment';
 
@@ -12,17 +12,6 @@ const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const FORBIDDEN_MESSAGE = '약속일을 변경할 권한이 없습니다.';
 const NOT_FOUND_MESSAGE = '분납 일정을 찾을 수 없습니다.';
 const UPDATE_FAILED_MESSAGE = '약속일을 변경하지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export function loader(): Response {
   return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 405);

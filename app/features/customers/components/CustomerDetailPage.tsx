@@ -21,17 +21,20 @@ import {
   consultationStatusLabels,
   customerCaseProgressTab,
   customerConsultationTab,
-  customerFormError,
   customerInstallmentTab,
   formatCustomerPhone,
 } from '~/features/customers/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 import { fieldLabel, fieldValue } from '~/lib/styles';
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import type { JSX } from 'react';
-import type { CaseProgress, ConsultationListResponse, ConsultationStatus } from '~/features/customers/type';
+import type {
+  CaseProgress,
+  ConsultationListResponse,
+  ConsultationStatus,
+} from '~/features/customers/type';
 
 const missingRecentConsultation = '없음';
 const customerCaseStageLabel = '서류 준비';
@@ -98,13 +101,6 @@ function CustomerDetailSkeleton(): JSX.Element {
   );
 }
 
-function customerDetailErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return customerFormError(error.body) ?? '상담 고객을 불러오지 못했습니다.';
-  }
-  return '상담 고객을 불러오지 못했습니다.';
-}
-
 function CustomerDetailTabEmpty({
   title,
   description,
@@ -146,9 +142,7 @@ function renderCustomerDetailTab(
   if (tab.value === 'case-progress' && status === 'RETAINED') {
     return <CustomerCaseProgress customerId={customerId} />;
   }
-  return (
-    <CustomerDetailTabEmpty title={tab.title} description={tab.description} icon={tab.icon} />
-  );
+  return <CustomerDetailTabEmpty title={tab.title} description={tab.description} icon={tab.icon} />;
 }
 
 type CustomerDetailTabsProps = {
@@ -236,7 +230,7 @@ export function CustomerDetailPage(): JSX.Element {
   if (customer.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {customerDetailErrorMessage(customer.error)}
+        {readQueryError(customer.error, '상담 고객을 불러오지 못했습니다.')}
       </p>
     );
   }

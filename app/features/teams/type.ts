@@ -109,13 +109,6 @@ export function isTeamCreateResponse(value: unknown): value is TeamCreateRespons
   );
 }
 
-export function teamFormError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
-}
-
 export type TeamMemberOption = {
   id: string;
   name: string;

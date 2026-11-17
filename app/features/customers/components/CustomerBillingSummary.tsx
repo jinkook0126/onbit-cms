@@ -1,7 +1,7 @@
 import { Skeleton } from '~/components/ui/skeleton';
 import { useCustomerSummary } from '~/features/customers/hooks/useCustomerSummary';
-import { customerFormError } from '~/features/customers/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
+import { formatWon } from '~/lib/money';
 import { fieldLabel, fieldValue } from '~/lib/styles';
 
 import type { JSX } from 'react';
@@ -11,8 +11,6 @@ type CustomerBillingSummaryProps = {
   customerId: string;
 };
 
-const wonFormat = new Intl.NumberFormat('ko-KR');
-
 const summaryFields: { key: keyof CustomerSummary; label: string }[] = [
   { key: 'totalAmount', label: '계약금 포함 총 금액' },
   { key: 'deposit', label: '계약금' },
@@ -20,17 +18,6 @@ const summaryFields: { key: keyof CustomerSummary; label: string }[] = [
   { key: 'remainingRetainer', label: '남은 수임료' },
   { key: 'overdue', label: '연체액' },
 ];
-
-function formatWon(amount: number): string {
-  return `${wonFormat.format(amount)}원`;
-}
-
-function summaryErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return customerFormError(error.body) ?? '수임 요약을 불러오지 못했습니다.';
-  }
-  return '수임 요약을 불러오지 못했습니다.';
-}
 
 export function CustomerBillingSummary({ customerId }: CustomerBillingSummaryProps): JSX.Element {
   const summary = useCustomerSummary(customerId);
@@ -46,7 +33,7 @@ export function CustomerBillingSummary({ customerId }: CustomerBillingSummaryPro
   if (summary.isError) {
     return (
       <p role="alert" className="mt-6 border-t border-border pt-6 text-sm text-destructive">
-        {summaryErrorMessage(summary.error)}
+        {readQueryError(summary.error, '수임 요약을 불러오지 못했습니다.')}
       </p>
     );
   }

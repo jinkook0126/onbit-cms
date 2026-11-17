@@ -1,24 +1,12 @@
 import { updateAccountPassword } from '~/features/settings/api/account.server';
 import { isAccountPasswordSubmission } from '~/features/settings/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
-import type { AccountPasswordResponse } from '~/features/settings/type';
 import type { Route } from './+types/api.account-password';
 
 const INVALID_REQUEST_MESSAGE = '비밀번호를 변경하지 못했습니다. 다시 시도하세요.';
 const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const INVALID_CREDENTIALS_MESSAGE = '현재 비밀번호가 올바르지 않습니다.';
-
-function jsonResponse(body: AccountPasswordResponse, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export function loader(): Response {
   return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 405);

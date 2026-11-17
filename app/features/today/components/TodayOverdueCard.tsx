@@ -10,6 +10,7 @@ import {
 } from '~/components/ui/table';
 import { customerInstallmentTab, installmentScheduleLabel } from '~/features/customers/type';
 import { CustomerLink } from '~/features/today/components/TodayWorkLists';
+import { formatWon } from '~/lib/money';
 
 import type { JSX } from 'react';
 import type { TodayOverdueInstallment } from '~/features/today/type';
@@ -17,12 +18,6 @@ import type { TodayOverdueInstallment } from '~/features/today/type';
 type TodayOverdueCardProps = {
   installments: TodayOverdueInstallment[];
 };
-
-const wonFormat = new Intl.NumberFormat('ko-KR');
-
-function formatWon(amount: number): string {
-  return `${wonFormat.format(amount)}원`;
-}
 
 export function TodayOverdueCard({ installments }: TodayOverdueCardProps): JSX.Element {
   return (

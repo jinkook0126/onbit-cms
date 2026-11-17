@@ -9,7 +9,7 @@ import {
   isTeamNameSubmission,
   isTeamStatusSubmission,
 } from '~/features/teams/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.team';
 
@@ -20,17 +20,6 @@ const NOT_FOUND_MESSAGE = '팀을 찾을 수 없습니다.';
 const NAME_FAILED_MESSAGE = '팀 이름을 변경하지 못했습니다. 다시 시도하세요.';
 const STATUS_FAILED_MESSAGE = '팀 상태를 변경하지 못했습니다. 다시 시도하세요.';
 const LEADER_FAILED_MESSAGE = '팀장을 변경하지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export async function loader({ request, params }: Route.LoaderArgs): Promise<Response> {
   if (request.method !== 'GET') {

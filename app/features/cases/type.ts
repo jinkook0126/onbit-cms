@@ -110,11 +110,4 @@ export function isCaseProgressStageParam(value: string | null): boolean {
   return value === null || value === 'all' || isCaseProgressStage(value);
 }
 
-export function caseFormError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
-}
-
 export const caseStageOptions = Object.keys(caseProgressStageLabels) as CaseProgressStage[];

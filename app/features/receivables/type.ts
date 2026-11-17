@@ -107,10 +107,3 @@ export function parseReceivableSearchField(value: string | null): ReceivableSear
   }
   return null;
 }
-
-export function receivableFormError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
-}

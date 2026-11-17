@@ -98,10 +98,3 @@ export function formatSettlementMonth(month: string): string {
   const [year, monthNumber] = month.split('-');
   return `${year}년 ${Number(monthNumber)}월`;
 }
-
-export function settlementFormError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
-}
