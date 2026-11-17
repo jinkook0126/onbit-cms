@@ -13,6 +13,7 @@ import { useCustomerLedger } from '~/features/customers/hooks/useCustomerLedger'
 import { ledgerEntryKindLabels, paymentMethodLabels } from '~/features/customers/type';
 import { readQueryError } from '~/lib/formError';
 import { formatWon } from '~/lib/money';
+import { pageAlert, pageSurface } from '~/lib/styles';
 
 import type { JSX } from 'react';
 import type { LedgerEntryKind } from '~/features/customers/type';
@@ -30,12 +31,16 @@ export function CustomerLedgerList({ customerId }: CustomerLedgerListProps): JSX
   const ledger = useCustomerLedger(customerId);
 
   if (ledger.isPending) {
-    return <Skeleton className="h-64 w-full" aria-hidden="true" />;
+    return (
+      <div className={`${pageSurface} p-5`} aria-hidden="true">
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
   }
 
   if (ledger.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(ledger.error, '거래 원장을 불러오지 못했습니다.')}
       </p>
     );
@@ -54,24 +59,18 @@ export function CustomerLedgerList({ customerId }: CustomerLedgerListProps): JSX
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl bg-card ring-1 ring-border">
+        <div className={`${pageSurface} overflow-hidden`}>
           <Table className="table-fixed">
             <caption className="sr-only">거래 원장</caption>
-            <TableHeader className="bg-muted">
-              <TableRow className="border-border hover:bg-muted">
-                <TableHead className="h-12 w-44 px-4 font-medium text-muted-foreground">
-                  거래일
-                </TableHead>
-                <TableHead className="h-12 w-20 px-4 font-medium text-muted-foreground">
-                  구분
-                </TableHead>
-                <TableHead className="h-12 w-36 px-4 text-right font-medium text-muted-foreground">
+            <TableHeader>
+              <TableRow className="border-border hover:bg-card">
+                <TableHead className="h-12 w-44 px-4 font-medium text-foreground">거래일</TableHead>
+                <TableHead className="h-12 w-20 px-4 font-medium text-foreground">구분</TableHead>
+                <TableHead className="h-12 w-36 px-4 text-right font-medium text-foreground">
                   금액
                 </TableHead>
-                <TableHead className="h-12 w-20 px-4 font-medium text-muted-foreground">
-                  수단
-                </TableHead>
-                <TableHead className="h-12 px-4 font-medium text-muted-foreground">사유</TableHead>
+                <TableHead className="h-12 w-20 px-4 font-medium text-foreground">수단</TableHead>
+                <TableHead className="h-12 px-4 font-medium text-foreground">사유</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

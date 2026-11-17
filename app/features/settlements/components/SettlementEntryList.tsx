@@ -9,6 +9,7 @@ import {
 } from '~/components/ui/table';
 import { ledgerEntryKindLabels, paymentMethodLabels } from '~/features/customers/type';
 import { formatWon } from '~/lib/money';
+import { pageSurface } from '~/lib/styles';
 
 import type { JSX } from 'react';
 import type { LedgerEntryKind } from '~/features/customers/type';
@@ -34,20 +35,18 @@ export function SettlementEntryList({ entries }: SettlementEntryListProps): JSX.
   }
 
   return (
-    <div className="overflow-hidden rounded-xl bg-card ring-1 ring-border">
+    <div className={`${pageSurface} overflow-hidden`}>
       <Table>
         <caption className="sr-only">월별 정산 목록</caption>
-        <TableHeader className="bg-muted">
-          <TableRow className="border-border hover:bg-muted">
-            <TableHead className="h-12 px-4 font-medium text-muted-foreground">거래일</TableHead>
-            <TableHead className="h-12 px-4 font-medium text-muted-foreground">고객</TableHead>
-            <TableHead className="h-12 px-4 font-medium text-muted-foreground">구분</TableHead>
-            <TableHead className="h-12 px-4 text-right font-medium text-muted-foreground">
-              금액
-            </TableHead>
-            <TableHead className="h-12 px-4 font-medium text-muted-foreground">담당</TableHead>
-            <TableHead className="h-12 px-4 font-medium text-muted-foreground">수단</TableHead>
-            <TableHead className="h-12 px-4 font-medium text-muted-foreground">사유</TableHead>
+        <TableHeader>
+          <TableRow className="border-border hover:bg-card">
+            <TableHead className="h-12 px-4 font-medium text-foreground">거래일</TableHead>
+            <TableHead className="h-12 px-4 font-medium text-foreground">고객</TableHead>
+            <TableHead className="h-12 px-4 font-medium text-foreground">구분</TableHead>
+            <TableHead className="h-12 px-4 text-right font-medium text-foreground">금액</TableHead>
+            <TableHead className="h-12 px-4 font-medium text-foreground">담당</TableHead>
+            <TableHead className="h-12 px-4 font-medium text-foreground">수단</TableHead>
+            <TableHead className="h-12 px-4 font-medium text-foreground">사유</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

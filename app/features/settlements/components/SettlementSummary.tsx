@@ -1,5 +1,5 @@
 import { formatWon } from '~/lib/money';
-import { fieldLabel, fieldValue } from '~/lib/styles';
+import { fieldLabel, fieldValue, pageSurface } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX } from 'react';
@@ -17,7 +17,9 @@ const summaryFields = [
 
 export function SettlementSummary({ settlement }: SettlementSummaryProps): JSX.Element {
   return (
-    <section className="grid gap-4 rounded-xl bg-card p-4 ring-1 ring-border sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
+    <section
+      className={`${pageSurface} grid gap-4 p-5 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border`}
+    >
       <h2 className="sr-only">월별 합계</h2>
       {summaryFields.map((field, index) => {
         const amount = settlement[field.key];

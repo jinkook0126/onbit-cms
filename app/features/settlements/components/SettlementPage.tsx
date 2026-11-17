@@ -7,14 +7,19 @@ import { SettlementSummary } from '~/features/settlements/components/SettlementS
 import { useSettlement } from '~/features/settlements/hooks/useSettlement';
 import { parseSettlementMonth, seoulSettlementMonth } from '~/features/settlements/type';
 import { readQueryError } from '~/lib/formError';
+import { pageAlert, pageSurface } from '~/lib/styles';
 
 import type { JSX } from 'react';
 
 function SettlementBodySkeleton(): JSX.Element {
   return (
-    <div className="grid gap-4" aria-hidden="true">
-      <Skeleton className="h-24 w-full" />
-      <Skeleton className="h-80 w-full" />
+    <div className="grid gap-5" aria-hidden="true">
+      <div className={`${pageSurface} p-5`}>
+        <Skeleton className="h-16 w-full" />
+      </div>
+      <div className={`${pageSurface} p-5`}>
+        <Skeleton className="h-72 w-full" />
+      </div>
     </div>
   );
 }
@@ -35,7 +40,7 @@ export function SettlementPage(): JSX.Element {
     body = <SettlementBodySkeleton />;
   } else if (settlement.isError) {
     body = (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(settlement.error, '월별 정산을 불러오지 못했습니다.')}
       </p>
     );
@@ -52,8 +57,10 @@ export function SettlementPage(): JSX.Element {
   }
 
   return (
-    <div className="grid gap-4">
-      <SettlementMonthField month={month} onMonthChange={changeMonth} />
+    <div className="grid gap-5">
+      <div className={`${pageSurface} px-5 py-4`}>
+        <SettlementMonthField month={month} onMonthChange={changeMonth} />
+      </div>
       {body}
     </div>
   );

@@ -14,7 +14,7 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { TeamCreateDialog } from '~/features/teams/components/TeamCreateDialog';
 import { useTeamList } from '~/features/teams/hooks/useTeamList';
 import { readQueryError } from '~/lib/formError';
-import { focusRing } from '~/lib/styles';
+import { focusRing, pageAlert, pageSurface, tableHeaderSurface } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX, MouseEvent } from 'react';
@@ -29,8 +29,7 @@ const teamCreatedAtLabel = new Intl.DateTimeFormat('ko-KR', {
 
 function TeamListSkeleton(): JSX.Element {
   return (
-    <div className="grid gap-3" aria-hidden="true">
-      <Skeleton className="h-10 w-28" />
+    <div className={`${pageSurface} p-5`} aria-hidden="true">
       <Skeleton className="h-40 w-full" />
     </div>
   );
@@ -108,7 +107,7 @@ export function TeamListPage(): JSX.Element {
 
   if (teams.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(teams.error, '팀 목록을 불러오지 못했습니다.')}
       </p>
     );
@@ -118,32 +117,51 @@ export function TeamListPage(): JSX.Element {
   let listBody: JSX.Element;
   if (company === null) {
     listBody = (
-      <p className="text-sm text-muted-foreground">
+      <p className={`${pageSurface} px-6 py-10 text-center text-sm text-muted-foreground`}>
         {companies.length === 0 ? '등록된 회사가 없습니다.' : '회사를 선택하세요.'}
       </p>
     );
   } else if (teams.data.teams.length === 0) {
-    listBody = <p className="text-sm text-muted-foreground">등록된 팀이 없습니다.</p>;
+    listBody = (
+      <p className={`${pageSurface} px-6 py-10 text-center text-sm text-muted-foreground`}>
+        등록된 팀이 없습니다.
+      </p>
+    );
   } else {
     listBody = (
-      <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-border">
+      <div className={`${pageSurface} overflow-x-auto`}>
         <table className="w-full text-left text-sm">
           <caption className="sr-only">팀 목록</caption>
-          <thead className="border-b border-border">
+          <thead className={`border-b border-border ${tableHeaderSurface}`}>
             <tr>
-              <th scope="col" className="px-4 py-3 font-medium text-foreground">
+              <th
+                scope="col"
+                className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+              >
                 팀명
               </th>
-              <th scope="col" className="px-4 py-3 font-medium text-foreground">
+              <th
+                scope="col"
+                className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+              >
                 팀장
               </th>
-              <th scope="col" className="px-4 py-3 font-medium text-foreground">
+              <th
+                scope="col"
+                className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+              >
                 팀원 수
               </th>
-              <th scope="col" className="px-4 py-3 font-medium text-foreground">
+              <th
+                scope="col"
+                className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+              >
                 생성일
               </th>
-              <th scope="col" className="px-4 py-3 font-medium text-foreground">
+              <th
+                scope="col"
+                className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+              >
                 상태
               </th>
             </tr>
@@ -162,33 +180,38 @@ export function TeamListPage(): JSX.Element {
     setSearchParams({ companyId }, { replace: true });
   }
 
+  const showToolbar = companies.length > 0 || company !== null;
+
   return (
-    <div className="grid max-w-240 gap-4">
-      <div
-        className={cn(
-          'flex flex-wrap items-end gap-4',
-          companies.length > 0 ? 'justify-between' : 'justify-end',
-        )}
-      >
-        {companies.length > 0 ? (
-          <div className="grid w-full max-w-80 gap-2">
-            <Label htmlFor="team-company">회사</Label>
-            <Select value={company?.id} onValueChange={changeCompany}>
-              <SelectTrigger id="team-company" className="w-full">
-                <SelectValue placeholder="회사를 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
-        {company ? <TeamCreateDialog companyId={company.id} /> : null}
-      </div>
+    <div className="grid max-w-240 gap-5">
+      {showToolbar ? (
+        <div
+          className={cn(
+            pageSurface,
+            'flex flex-wrap items-end gap-4 px-5 py-4',
+            companies.length > 0 ? 'justify-between' : 'justify-end',
+          )}
+        >
+          {companies.length > 0 ? (
+            <div className="grid w-full max-w-80 gap-2">
+              <Label htmlFor="team-company">회사</Label>
+              <Select value={company?.id} onValueChange={changeCompany}>
+                <SelectTrigger id="team-company" className="w-full">
+                  <SelectValue placeholder="회사를 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {company ? <TeamCreateDialog companyId={company.id} /> : null}
+        </div>
+      ) : null}
       {listBody}
     </div>
   );

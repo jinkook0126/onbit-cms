@@ -2,7 +2,7 @@ import { ArrowRightIcon } from 'lucide-react';
 import { Link } from 'react-router';
 
 import { visibleSettingsNavSections } from '~/features/settings/nav';
-import { focusRing } from '~/lib/styles';
+import { focusRing, pageSurface } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX } from 'react';
@@ -22,7 +22,7 @@ export function SettingsPage({ role }: SettingsPageProps): JSX.Element {
           <h2 id={section.id} className="text-sm font-medium text-foreground">
             {section.label}
           </h2>
-          <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {section.items.map((item) => {
               const Icon = item.icon;
 
@@ -31,7 +31,8 @@ export function SettingsPage({ role }: SettingsPageProps): JSX.Element {
                   <Link
                     to={item.to}
                     className={cn(
-                      'flex h-full flex-col rounded-xl bg-card p-4 text-foreground ring-1 ring-border transition-colors duration-150 hover:ring-input',
+                      'flex h-full flex-col p-5 text-foreground transition-colors duration-150 hover:ring-input',
+                      pageSurface,
                       focusRing,
                     )}
                   >

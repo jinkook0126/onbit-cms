@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import { Badge } from '~/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
@@ -14,13 +14,17 @@ import { customerCaseProgressTab, customerConsultationTab } from '~/features/cus
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
-import type { JSX } from 'react';
+import type { JSX, MouseEvent } from 'react';
 import type { TodayCaseTask, TodayContact } from '~/features/today/type';
 
 type TodayWorkListsProps = {
   contacts: TodayContact[];
   cases: TodayCaseTask[];
 };
+
+const labelCell = 'h-auto px-5 py-3 text-left text-sm font-medium text-foreground';
+const nameCell = 'px-5 py-3.5 text-left align-top';
+const textCell = 'px-5 py-3.5 text-left align-top whitespace-normal break-words';
 
 function customerPath(customerId: string, tab: string): string {
   return `/customers/${customerId}?tab=${tab}`;
@@ -30,112 +34,172 @@ export function CustomerLink({
   customerId,
   tab,
   name,
+  className,
 }: {
   customerId: string;
   tab: string;
   name: string;
+  className?: string;
 }): JSX.Element {
   return (
     <Link
       to={customerPath(customerId, tab)}
-      className={cn('rounded-sm text-foreground', focusRing)}
+      className={cn('rounded-sm font-medium text-foreground', focusRing, className)}
     >
       {name}
     </Link>
   );
 }
 
-function TodayContactCard({ contacts }: { contacts: TodayContact[] }): JSX.Element {
+export function TodayEmptyState({ message }: { message: string }): JSX.Element {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>오늘 연락할 고객</CardTitle>
+    <div className="flex min-h-52 flex-1 items-center justify-center rounded-lg bg-muted px-6 py-10 text-center">
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+function TodayPanel({ title, children }: { title: string; children: JSX.Element }): JSX.Element {
+  return (
+    <Card className="h-full gap-0 py-0 shadow-none">
+      <CardHeader className="px-5 pt-5 pb-1">
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
-      <CardContent>
-        {contacts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">오늘 연락할 고객이 없습니다.</p>
-        ) : (
-          <Table>
-            <caption className="sr-only">오늘 연락할 고객</caption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="h-10 px-0 font-medium text-muted-foreground">고객</TableHead>
-                <TableHead className="h-10 px-4 font-medium text-muted-foreground">담당</TableHead>
-                <TableHead className="h-10 px-0 font-medium text-muted-foreground">
-                  상담내용
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contacts.map((contact) => (
-                <TableRow key={contact.customerId}>
-                  <TableCell className="px-0 py-3 align-top">
-                    <CustomerLink
-                      customerId={contact.customerId}
-                      tab={customerConsultationTab}
-                      name={contact.customerName}
-                    />
-                  </TableCell>
-                  <TableCell className="px-4 py-3 align-top">
-                    {contact.assigneeName ?? <Badge variant="outline">미정</Badge>}
-                  </TableCell>
-                  <TableCell className="px-0 py-3 align-top break-words whitespace-pre-wrap">
-                    {contact.content}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
+      <CardContent className="px-0 pb-2">{children}</CardContent>
     </Card>
   );
 }
 
-function TodayCaseCard({ cases }: { cases: TodayCaseTask[] }): JSX.Element {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>확인할 사건</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {cases.length === 0 ? (
-          <p className="text-sm text-muted-foreground">확인할 사건이 없습니다.</p>
-        ) : (
-          <Table>
-            <caption className="sr-only">확인할 사건</caption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="h-10 px-0 font-medium text-muted-foreground">고객</TableHead>
-                <TableHead className="h-10 px-0 font-medium text-muted-foreground">업무</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {cases.map((item) => (
-                <TableRow key={item.customerId}>
-                  <TableCell className="px-0 py-3 align-top">
-                    <CustomerLink
-                      customerId={item.customerId}
-                      tab={customerCaseProgressTab}
-                      name={item.customerName}
-                    />
-                  </TableCell>
-                  <TableCell className="px-0 py-3 align-top break-words whitespace-pre-wrap">
-                    {item.task}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+function AssigneeName({ name }: { name: string | null }): JSX.Element {
+  if (!name) {
+    return <Badge variant="outline">미정</Badge>;
+  }
+  return <span className="block truncate">{name}</span>;
+}
+
+function openCustomer(
+  navigate: ReturnType<typeof useNavigate>,
+  customerId: string,
+  tab: string,
+  event: MouseEvent<HTMLTableRowElement>,
+): void {
+  if (event.target instanceof Element && event.target.closest('a, button')) {
+    return;
+  }
+  void navigate(customerPath(customerId, tab));
+}
+
+function TodayContactCard({ contacts }: { contacts: TodayContact[] }): JSX.Element {
+  const navigate = useNavigate();
+  let body = (
+    <div className="px-5 pt-2 pb-5">
+      <TodayEmptyState message="오늘 연락할 고객이 없습니다." />
+    </div>
   );
+  if (contacts.length > 0) {
+    body = (
+      <Table className="table-fixed">
+        <caption className="sr-only">오늘 연락할 고객</caption>
+        <colgroup>
+          <col className="w-[26%]" />
+          <col className="w-[22%]" />
+          <col className="w-[52%]" />
+        </colgroup>
+        <TableHeader>
+          <TableRow className="border-border hover:bg-card">
+            <TableHead className={labelCell}>고객</TableHead>
+            <TableHead className={labelCell}>담당</TableHead>
+            <TableHead className={labelCell}>상담 내용</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {contacts.map((contact) => (
+            <TableRow
+              key={contact.customerId}
+              className="cursor-pointer border-border/70"
+              onClick={(event) => {
+                openCustomer(navigate, contact.customerId, customerConsultationTab, event);
+              }}
+            >
+              <TableCell className={nameCell}>
+                <CustomerLink
+                  customerId={contact.customerId}
+                  tab={customerConsultationTab}
+                  name={contact.customerName}
+                  className="block truncate"
+                />
+              </TableCell>
+              <TableCell className={nameCell}>
+                <AssigneeName name={contact.assigneeName} />
+              </TableCell>
+              <TableCell className={textCell}>{contact.content}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  return <TodayPanel title="오늘 연락할 고객">{body}</TodayPanel>;
+}
+
+function TodayCaseCard({ cases }: { cases: TodayCaseTask[] }): JSX.Element {
+  const navigate = useNavigate();
+  let body = (
+    <div className="px-5 pt-2 pb-5">
+      <TodayEmptyState message="확인할 사건이 없습니다." />
+    </div>
+  );
+  if (cases.length > 0) {
+    body = (
+      <Table className="table-fixed">
+        <caption className="sr-only">확인할 사건</caption>
+        <colgroup>
+          <col className="w-[26%]" />
+          <col className="w-[22%]" />
+          <col className="w-[52%]" />
+        </colgroup>
+        <TableHeader>
+          <TableRow className="border-border hover:bg-card">
+            <TableHead className={labelCell}>고객</TableHead>
+            <TableHead className={labelCell}>담당</TableHead>
+            <TableHead className={labelCell}>다음 할 일</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {cases.map((item) => (
+            <TableRow
+              key={item.customerId}
+              className="cursor-pointer border-border/70"
+              onClick={(event) => {
+                openCustomer(navigate, item.customerId, customerCaseProgressTab, event);
+              }}
+            >
+              <TableCell className={nameCell}>
+                <CustomerLink
+                  customerId={item.customerId}
+                  tab={customerCaseProgressTab}
+                  name={item.customerName}
+                  className="block truncate"
+                />
+              </TableCell>
+              <TableCell className={nameCell}>
+                <AssigneeName name={item.assigneeName} />
+              </TableCell>
+              <TableCell className={textCell}>{item.task}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
+
+  return <TodayPanel title="확인할 사건">{body}</TodayPanel>;
 }
 
 export function TodayWorkLists({ contacts, cases }: TodayWorkListsProps): JSX.Element {
   return (
-    <section className="grid items-start gap-4 lg:grid-cols-2">
+    <section className="grid items-stretch gap-5 lg:grid-cols-2">
       <h2 className="sr-only">오늘의 목록</h2>
       <TodayContactCard contacts={contacts} />
       <TodayCaseCard cases={cases} />

@@ -1,3 +1,16 @@
+/** 로그인 후 본문. 헤더 아래를 옅은 회색으로 채운다. */
+export const pageCanvas =
+  'flex min-h-[calc(100dvh-3.5rem)] flex-1 flex-col bg-muted px-6 py-6 xl:px-8';
+
+/** 회색 본문 위의 흰 카드. */
+export const pageSurface = 'rounded-xl bg-card ring-1 ring-border';
+
+/** 표 머리. 흰 카드와 같고, 아래 구분선과 글자 굵기로 행과 나눈다. */
+export const tableHeaderSurface = 'bg-card hover:bg-card';
+
+/** 화면 전체 조회 오류. */
+export const pageAlert = 'rounded-xl bg-card px-5 py-4 text-sm text-destructive ring-1 ring-border';
+
 /** 키보드 focus 표시. ring은 --ring(= primary)을 투명도 없이 사용해 3:1 이상 대비를 유지한다. */
 export const focusRing =
   'outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
