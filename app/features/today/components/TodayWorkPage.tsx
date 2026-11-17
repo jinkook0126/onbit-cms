@@ -3,8 +3,8 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { TodayOverdueCard } from '~/features/today/components/TodayOverdueCard';
 import { TodayWorkLists } from '~/features/today/components/TodayWorkLists';
 import { useTodayWork } from '~/features/today/hooks/useTodayWork';
-import { todayWorkError } from '~/features/today/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
+import { formatWon } from '~/lib/money';
 import { fieldLabel } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -12,7 +12,6 @@ import type { JSX } from 'react';
 import type { TodayWork } from '~/features/today/type';
 
 const countFormat = new Intl.NumberFormat('ko-KR');
-const wonFormat = new Intl.NumberFormat('ko-KR');
 
 type TodayCard = {
   key: keyof TodayWork;
@@ -23,10 +22,6 @@ type TodayCard = {
 
 function formatCount(value: number, unit: string): string {
   return `${countFormat.format(value)}${unit}`;
-}
-
-function formatWon(value: number): string {
-  return `${wonFormat.format(value)}원`;
 }
 
 function todayCards(work: TodayWork): TodayCard[] {
@@ -58,13 +53,6 @@ function todayCards(work: TodayWork): TodayCard[] {
   ];
 }
 
-function todayWorkErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return todayWorkError(error.body) ?? '오늘의 업무를 불러오지 못했습니다.';
-  }
-  return '오늘의 업무를 불러오지 못했습니다.';
-}
-
 function TodayWorkSkeleton(): JSX.Element {
   return (
     <div className="grid gap-4" aria-hidden="true">
@@ -93,7 +81,7 @@ export function TodayWorkPage(): JSX.Element {
   if (work.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {todayWorkErrorMessage(work.error)}
+        {readQueryError(work.error, '오늘의 업무를 불러오지 못했습니다.')}
       </p>
     );
   }

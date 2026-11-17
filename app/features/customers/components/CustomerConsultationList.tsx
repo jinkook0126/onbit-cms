@@ -5,8 +5,7 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { ConsultationCreateDialog } from '~/features/customers/components/ConsultationCreateDialog';
 import { ConsultationEditDialog } from '~/features/customers/components/ConsultationEditDialog';
 import { ConsultationStatusForm } from '~/features/customers/components/ConsultationStatusForm';
-import { customerFormError } from '~/features/customers/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 import { fieldLabel, fieldValue } from '~/lib/styles';
 
 import type { UseQueryResult } from '@tanstack/react-query';
@@ -45,13 +44,6 @@ export function formatConsultationCreatedAt(value: string): string {
     day: '2-digit',
   }).format(date);
   return formatCalendarDay(formatted);
-}
-
-function consultationListErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return customerFormError(error.body) ?? '상담 이력을 불러오지 못했습니다.';
-  }
-  return '상담 이력을 불러오지 못했습니다.';
 }
 
 function ConsultationCard({
@@ -119,7 +111,7 @@ export function CustomerConsultationList({
   } else if (consultations.isError) {
     body = (
       <p role="alert" className="text-sm text-destructive">
-        {consultationListErrorMessage(consultations.error)}
+        {readQueryError(consultations.error, '상담 이력을 불러오지 못했습니다.')}
       </p>
     );
   } else if (consultations.data.consultations.length === 0) {

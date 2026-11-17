@@ -86,13 +86,6 @@ export function isCompanyCreateResponse(value: unknown): value is CompanyCreateR
   );
 }
 
-export function companyFormError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
-}
-
 export type CompanyMasterAccount = {
   id: string;
   loginId: string;

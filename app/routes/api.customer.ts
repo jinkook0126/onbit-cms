@@ -1,6 +1,6 @@
 import { readCustomer, updateCustomerStatus } from '~/features/customers/api/customers.server';
 import { isCustomerStatusSubmission } from '~/features/customers/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.customer';
 
@@ -13,17 +13,6 @@ const READ_FAILED_MESSAGE = '상담 고객을 불러오지 못했습니다. 다�
 const STATUS_FAILED_MESSAGE = '상담 상태를 변경하지 못했습니다. 다시 시도하세요.';
 const RETAINED_STATUS_MESSAGE = '수임은 상담 상태에서 고를 수 없습니다.';
 const RETAINED_LOCKED_MESSAGE = '수임 상태는 바꿀 수 없습니다.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export async function loader({ request, params }: Route.LoaderArgs): Promise<Response> {
   if (request.method !== 'GET') {

@@ -5,8 +5,8 @@ import { CaseDataTable } from '~/features/cases/components/CaseDataTable';
 import { CaseSearchForm } from '~/features/cases/components/CaseSearchForm';
 import { CaseStageFilter } from '~/features/cases/components/CaseStageFilter';
 import { useCaseList } from '~/features/cases/hooks/useCaseList';
-import { caseFormError, parseCaseProgressStage, parseCaseSearchField } from '~/features/cases/type';
-import { ApiError } from '~/lib/apiClient';
+import { parseCaseProgressStage, parseCaseSearchField } from '~/features/cases/type';
+import { readQueryError } from '~/lib/formError';
 
 import type { JSX } from 'react';
 import type { CaseSearchField } from '~/features/cases/type';
@@ -14,13 +14,6 @@ import type { CaseProgressStage } from '~/features/customers/type';
 
 function CaseListSkeleton(): JSX.Element {
   return <Skeleton className="h-80 w-full" aria-hidden="true" />;
-}
-
-function caseListErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return caseFormError(error.body) ?? '사건 목록을 불러오지 못했습니다.';
-  }
-  return '사건 목록을 불러오지 못했습니다.';
 }
 
 function readPage(value: string | null): number {
@@ -95,7 +88,7 @@ export function CaseListPage(): JSX.Element {
   } else if (cases.isError) {
     listBody = (
       <p role="alert" className="text-sm text-destructive">
-        {caseListErrorMessage(cases.error)}
+        {readQueryError(cases.error, '사건 목록을 불러오지 못했습니다.')}
       </p>
     );
   } else {

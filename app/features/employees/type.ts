@@ -127,13 +127,6 @@ export function isEmployeeCreateResponse(value: unknown): value is EmployeeCreat
   );
 }
 
-export function employeeFormError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
-}
-
 export function isEmployeeTeamSubmission(value: unknown): value is EmployeeTeamSubmission {
   if (!isRecord(value) || !isNullableString(value.teamId)) {
     return false;

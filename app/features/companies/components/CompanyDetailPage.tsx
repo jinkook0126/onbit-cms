@@ -4,8 +4,7 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { CompanyMasterSection } from '~/features/companies/components/CompanyMasterSection';
 import { CompanyNameForm } from '~/features/companies/components/CompanyNameForm';
 import { useCompanyDetail } from '~/features/companies/hooks/useCompanyDetail';
-import { companyFormError } from '~/features/companies/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 
 import type { JSX } from 'react';
 
@@ -18,13 +17,6 @@ function CompanyDetailSkeleton(): JSX.Element {
       <Skeleton className="h-10 w-24" />
     </div>
   );
-}
-
-function companyDetailErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return companyFormError(error.body) ?? '회사 정보를 불러오지 못했습니다.';
-  }
-  return '회사 정보를 불러오지 못했습니다.';
 }
 
 export function CompanyDetailPage(): JSX.Element {
@@ -47,7 +39,7 @@ export function CompanyDetailPage(): JSX.Element {
   if (company.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {companyDetailErrorMessage(company.error)}
+        {readQueryError(company.error, '회사 정보를 불러오지 못했습니다.')}
       </p>
     );
   }

@@ -7,25 +7,17 @@ import { CustomerSearchForm } from '~/features/customers/components/CustomerSear
 import { CustomerStatusFilter } from '~/features/customers/components/CustomerStatusFilter';
 import { useCustomerList } from '~/features/customers/hooks/useCustomerList';
 import {
-  customerFormError,
   customerPhoneDigits,
   parseConsultationStatus,
   parseCustomerSearchField,
 } from '~/features/customers/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 
 import type { JSX } from 'react';
 import type { ConsultationStatus, CustomerSearchField } from '~/features/customers/type';
 
 function CustomerListSkeleton(): JSX.Element {
   return <Skeleton className="h-80 w-full" aria-hidden="true" />;
-}
-
-function customerListErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return customerFormError(error.body) ?? '상담 고객 목록을 불러오지 못했습니다.';
-  }
-  return '상담 고객 목록을 불러오지 못했습니다.';
 }
 
 function readPage(value: string | null): number {
@@ -101,7 +93,7 @@ export function CustomerListPage(): JSX.Element {
   } else if (customers.isError) {
     listBody = (
       <p role="alert" className="text-sm text-destructive">
-        {customerListErrorMessage(customers.error)}
+        {readQueryError(customers.error, '상담 고객 목록을 불러오지 못했습니다.')}
       </p>
     );
   } else {

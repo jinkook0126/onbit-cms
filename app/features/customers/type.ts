@@ -9,9 +9,9 @@ const refundConsultationPrefixLimit = '환불 2,000,000,000원 · '.length;
 export const MAX_REFUND_REASON_LENGTH =
   MAX_CONSULTATION_CONTENT_LENGTH - refundConsultationPrefixLimit;
 export const MAX_INSTALLMENT_COUNT = 120;
-const promiseChangePrefixLimit = `${MAX_INSTALLMENT_COUNT}회차 납기 0000-00-00 -> 0000-00-00 / `.length;
-export const MAX_PROMISE_REASON_LENGTH =
-  MAX_CONSULTATION_CONTENT_LENGTH - promiseChangePrefixLimit;
+const promiseChangePrefixLimit = `${MAX_INSTALLMENT_COUNT}회차 납기 0000-00-00 -> 0000-00-00 / `
+  .length;
+export const MAX_PROMISE_REASON_LENGTH = MAX_CONSULTATION_CONTENT_LENGTH - promiseChangePrefixLimit;
 export const MAX_CASE_NEXT_TASK_LENGTH = 200;
 
 export function customerPhoneDigits(value: string): string {
@@ -616,9 +616,7 @@ function isCaseProgressUpdateFieldErrors(value: unknown): value is CaseProgressU
   return stage && nextTask && taskDueOn;
 }
 
-export function isCaseProgressUpdateResponse(
-  value: unknown,
-): value is CaseProgressUpdateResponse {
+export function isCaseProgressUpdateResponse(value: unknown): value is CaseProgressUpdateResponse {
   if (!isRecord(value)) {
     return false;
   }
@@ -836,9 +834,7 @@ export function isInstallmentPaymentSubmission(
   return installmentPaymentErrorKeys.every((key) => typeof value[key] === 'string');
 }
 
-export function isInstallmentPaymentResponse(
-  value: unknown,
-): value is InstallmentPaymentResponse {
+export function isInstallmentPaymentResponse(value: unknown): value is InstallmentPaymentResponse {
   if (!isRecord(value)) {
     return false;
   }
@@ -852,13 +848,6 @@ export function isInstallmentPaymentResponse(
     return false;
   }
   return true;
-}
-
-export function customerFormError(value: unknown): string | undefined {
-  if (!isRecord(value) || typeof value.formError !== 'string') {
-    return undefined;
-  }
-  return value.formError;
 }
 
 export function isCustomerSearchField(value: string): value is CustomerSearchField {

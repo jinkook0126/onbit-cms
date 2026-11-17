@@ -1,6 +1,7 @@
 import { resolveSession } from '~/features/auth/api/auth.server';
 import { prisma } from '~/lib/db.server';
 import { createSupabaseServerClient } from '~/lib/supabase.server';
+import { isUuid } from '~/lib/uuid.server';
 
 import type { Prisma } from '../../../../generated/prisma/client';
 
@@ -61,4 +62,32 @@ export async function customerVisibilityWhere(
     };
   }
   return { companyId: actor.companyId, assigneeId: actor.userId };
+}
+
+export type AccessibleCustomer = {
+  id: string;
+  name: string;
+  phone: string;
+  status: string;
+  assignee: { name: string } | null;
+};
+
+export async function readAccessibleCustomer(
+  actor: Extract<CustomerActor, { status: 'ok' }>,
+  customerId: string,
+): Promise<AccessibleCustomer | null> {
+  if (!isUuid(customerId)) {
+    return null;
+  }
+  const visibility = await customerVisibilityWhere(actor);
+  return prisma.customer.findFirst({
+    where: { id: customerId, ...visibility },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      status: true,
+      assignee: { select: { name: true } },
+    },
+  });
 }

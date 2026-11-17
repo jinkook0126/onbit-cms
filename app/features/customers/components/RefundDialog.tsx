@@ -20,12 +20,11 @@ import { Textarea } from '~/components/ui/textarea';
 import { CustomerNextContactField } from '~/features/customers/components/CustomerNextContactField';
 import { useRefundForm } from '~/features/customers/hooks/useRefundForm';
 import { MAX_REFUND_REASON_LENGTH } from '~/features/customers/type';
+import { formatWon } from '~/lib/money';
 import { fieldLabel, sectionDescription } from '~/lib/styles';
 
 import type { JSX, SubmitEvent } from 'react';
 import type { RefundSource } from '~/features/customers/type';
-
-const wonFormat = new Intl.NumberFormat('ko-KR');
 
 type OutsideEvent = {
   preventDefault: () => void;
@@ -37,7 +36,7 @@ function isDatePickerTarget(target: EventTarget | null): boolean {
 }
 
 function refundSourceLabel(source: RefundSource): string {
-  return `${source.paidOn} · ${wonFormat.format(source.refundableAmount)}원`;
+  return `${source.paidOn} · ${formatWon(source.refundableAmount)}`;
 }
 
 type RefundDialogProps = {
@@ -97,7 +96,9 @@ export function RefundDialog({ customerId, refundSources }: RefundDialogProps): 
                   id="refund-payment"
                   className="w-full"
                   aria-invalid={form.fieldErrors?.paymentId ? true : undefined}
-                  aria-describedby={form.fieldErrors?.paymentId ? 'refund-payment-error' : undefined}
+                  aria-describedby={
+                    form.fieldErrors?.paymentId ? 'refund-payment-error' : undefined
+                  }
                 >
                   <SelectValue placeholder="원입금을 선택하세요" />
                 </SelectTrigger>

@@ -14,8 +14,7 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { EmployeeCreateDialog } from '~/features/employees/components/EmployeeCreateDialog';
 import { EmployeeTeamDialog } from '~/features/employees/components/EmployeeTeamDialog';
 import { useEmployeeList } from '~/features/employees/hooks/useEmployeeList';
-import { employeeFormError } from '~/features/employees/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 import { cn } from '~/lib/utils';
 
 import type { JSX, KeyboardEvent } from 'react';
@@ -28,13 +27,6 @@ function EmployeeListSkeleton(): JSX.Element {
       <Skeleton className="h-40 w-full" />
     </div>
   );
-}
-
-function employeeListErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return employeeFormError(error.body) ?? '직원 목록을 불러오지 못했습니다.';
-  }
-  return '직원 목록을 불러오지 못했습니다.';
 }
 
 function EmployeeTeamBadge({ teamName }: { teamName: string | null }): JSX.Element {
@@ -101,7 +93,7 @@ export function EmployeeListPage(): JSX.Element {
   if (employees.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {employeeListErrorMessage(employees.error)}
+        {readQueryError(employees.error, '직원 목록을 불러오지 못했습니다.')}
       </p>
     );
   }

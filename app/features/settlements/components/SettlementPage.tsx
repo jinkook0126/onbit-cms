@@ -5,12 +5,8 @@ import { SettlementEntryList } from '~/features/settlements/components/Settlemen
 import { SettlementMonthField } from '~/features/settlements/components/SettlementMonthField';
 import { SettlementSummary } from '~/features/settlements/components/SettlementSummary';
 import { useSettlement } from '~/features/settlements/hooks/useSettlement';
-import {
-  parseSettlementMonth,
-  seoulSettlementMonth,
-  settlementFormError,
-} from '~/features/settlements/type';
-import { ApiError } from '~/lib/apiClient';
+import { parseSettlementMonth, seoulSettlementMonth } from '~/features/settlements/type';
+import { readQueryError } from '~/lib/formError';
 
 import type { JSX } from 'react';
 
@@ -21,13 +17,6 @@ function SettlementBodySkeleton(): JSX.Element {
       <Skeleton className="h-80 w-full" />
     </div>
   );
-}
-
-function settlementErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return settlementFormError(error.body) ?? '월별 정산을 불러오지 못했습니다.';
-  }
-  return '월별 정산을 불러오지 못했습니다.';
 }
 
 export function SettlementPage(): JSX.Element {
@@ -47,7 +36,7 @@ export function SettlementPage(): JSX.Element {
   } else if (settlement.isError) {
     body = (
       <p role="alert" className="text-sm text-destructive">
-        {settlementErrorMessage(settlement.error)}
+        {readQueryError(settlement.error, '월별 정산을 불러오지 못했습니다.')}
       </p>
     );
   } else {

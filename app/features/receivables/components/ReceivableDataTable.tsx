@@ -18,6 +18,7 @@ import {
 } from '~/components/ui/table';
 import { customerInstallmentTab, installmentScheduleLabel } from '~/features/customers/type';
 import { RECEIVABLE_PAGE_SIZE, receivableStatusLabels } from '~/features/receivables/type';
+import { formatWon } from '~/lib/money';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -37,7 +38,6 @@ type ReceivableDataTableProps = {
 const features = tableFeatures({ rowPaginationFeature });
 const columnHelper = createColumnHelper<typeof features, ReceivableListItem>();
 const emptyReceivables: ReceivableListItem[] = [];
-const wonFormat = new Intl.NumberFormat('ko-KR');
 const amountColumnIds = new Set(['scheduledAmount', 'remainingAmount']);
 
 const statusVariants: Record<ReceivableStatus, 'default' | 'destructive' | 'secondary'> = {
@@ -45,10 +45,6 @@ const statusVariants: Record<ReceivableStatus, 'default' | 'destructive' | 'seco
   OVERDUE: 'destructive',
   SCHEDULED: 'secondary',
 };
-
-function formatWon(amount: number): string {
-  return `${wonFormat.format(amount)}원`;
-}
 
 function customerInstallmentPath(customerId: string): string {
   return `/customers/${customerId}?tab=${customerInstallmentTab}`;

@@ -22,10 +22,9 @@ import { useCustomerCreateForm } from '~/features/customers/hooks/useCustomerCre
 import {
   MAX_CUSTOMER_NAME_LENGTH,
   MAX_CUSTOMER_PHONE_LENGTH,
-  customerFormError,
   inflowSourceLabels,
 } from '~/features/customers/type';
-import { ApiError } from '~/lib/apiClient';
+import { readQueryError } from '~/lib/formError';
 import { fieldLabel, sectionDescription } from '~/lib/styles';
 
 import type { JSX, SubmitEvent } from 'react';
@@ -35,13 +34,6 @@ const sources = Object.keys(inflowSourceLabels) as InflowSource[];
 
 function isInflowSource(value: string): value is InflowSource {
   return sources.some((source) => source === value);
-}
-
-function assigneeErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return customerFormError(error.body) ?? '상담 담당 목록을 불러오지 못했습니다.';
-  }
-  return '상담 담당 목록을 불러오지 못했습니다.';
 }
 
 type OutsideEvent = {
@@ -219,7 +211,7 @@ export function CustomerCreateDrawer(): JSX.Element {
                 </Select>
                 {assignees.isError ? (
                   <p className="text-sm text-destructive" role="alert">
-                    {assigneeErrorMessage(assignees.error)}
+                    {readQueryError(assignees.error, '상담 담당 목록을 불러오지 못했습니다.')}
                   </p>
                 ) : null}
                 {fieldErrors?.assigneeId ? (

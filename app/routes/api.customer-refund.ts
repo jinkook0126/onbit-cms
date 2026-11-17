@@ -1,6 +1,6 @@
-import { createInstallmentRefund } from '~/features/customers/api/customers.server';
+import { createInstallmentRefund } from '~/features/customers/api/customerLedger.server';
 import { REFUND_EXHAUSTED_MESSAGE, isRefundSubmission } from '~/features/customers/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.customer-refund';
 
@@ -9,17 +9,6 @@ const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const FORBIDDEN_MESSAGE = '환불을 등록할 권한이 없습니다.';
 const NOT_FOUND_MESSAGE = '입금 내역을 찾을 수 없습니다.';
 const CREATE_FAILED_MESSAGE = '환불을 등록하지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export function loader(): Response {
   return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 405);

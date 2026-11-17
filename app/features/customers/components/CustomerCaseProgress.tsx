@@ -2,8 +2,8 @@ import { Badge } from '~/components/ui/badge';
 import { Skeleton } from '~/components/ui/skeleton';
 import { CaseProgressUpdateDialog } from '~/features/customers/components/CaseProgressUpdateDialog';
 import { useCustomerCaseProgress } from '~/features/customers/hooks/useCustomerCaseProgress';
-import { caseProgressStageLabels, customerFormError } from '~/features/customers/type';
-import { ApiError } from '~/lib/apiClient';
+import { caseProgressStageLabels } from '~/features/customers/type';
+import { readQueryError } from '~/lib/formError';
 import { fieldLabel, fieldValue } from '~/lib/styles';
 
 import type { JSX } from 'react';
@@ -13,13 +13,6 @@ type CustomerCaseProgressProps = {
 };
 
 const unsetTaskDueLabel = '미정';
-
-function caseProgressErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    return customerFormError(error.body) ?? '사건 진행을 불러오지 못했습니다.';
-  }
-  return '사건 진행을 불러오지 못했습니다.';
-}
 
 export function CustomerCaseProgress({ customerId }: CustomerCaseProgressProps): JSX.Element {
   const caseProgress = useCustomerCaseProgress(customerId);
@@ -31,7 +24,7 @@ export function CustomerCaseProgress({ customerId }: CustomerCaseProgressProps):
   if (caseProgress.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        {caseProgressErrorMessage(caseProgress.error)}
+        {readQueryError(caseProgress.error, '사건 진행을 불러오지 못했습니다.')}
       </p>
     );
   }

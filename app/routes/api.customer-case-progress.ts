@@ -1,6 +1,9 @@
-import { readCaseProgress, updateCaseProgress } from '~/features/customers/api/customers.server';
+import {
+  readCaseProgress,
+  updateCaseProgress,
+} from '~/features/customers/api/customerCaseProgress.server';
 import { isCaseProgressUpdateSubmission } from '~/features/customers/type';
-import { mergeResponseHeaders } from '~/lib/supabase.server';
+import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.customer-case-progress';
 
@@ -12,17 +15,6 @@ const READ_FAILED_MESSAGE = '사건 진행을 불러오지 못했습니다. 다�
 const UPDATE_FORBIDDEN_MESSAGE = '사건 진행을 변경할 권한이 없습니다.';
 const UPDATE_NOT_FOUND_MESSAGE = '사건 진행을 찾을 수 없습니다.';
 const UPDATE_FAILED_MESSAGE = '사건 진행을 변경하지 못했습니다. 다시 시도하세요.';
-
-function jsonResponse(body: unknown, status: number, extra?: Headers): Response {
-  const response = Response.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store' },
-  });
-  if (!extra) {
-    return response;
-  }
-  return mergeResponseHeaders(response, extra);
-}
 
 export async function loader({ request, params }: Route.LoaderArgs): Promise<Response> {
   if (request.method !== 'GET') {
