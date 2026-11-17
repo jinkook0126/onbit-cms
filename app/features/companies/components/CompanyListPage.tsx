@@ -5,7 +5,7 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { CompanyCreateDialog } from '~/features/companies/components/CompanyCreateDialog';
 import { useCompanyList } from '~/features/companies/hooks/useCompanyList';
 import { readQueryError } from '~/lib/formError';
-import { focusRing } from '~/lib/styles';
+import { focusRing, pageAlert, pageSurface, tableHeaderSurface } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX, MouseEvent } from 'react';
@@ -20,9 +20,10 @@ const companyCreatedAtLabel = new Intl.DateTimeFormat('ko-KR', {
 
 function CompanyListSkeleton(): JSX.Element {
   return (
-    <div className="grid gap-3" aria-hidden="true">
-      <Skeleton className="h-10 w-28" />
-      <Skeleton className="h-40 w-full" />
+    <div className="grid gap-5" aria-hidden="true">
+      <div className={`${pageSurface} p-5`}>
+        <Skeleton className="h-40 w-full" />
+      </div>
     </div>
   );
 }
@@ -75,32 +76,43 @@ export function CompanyListPage(): JSX.Element {
 
   if (companies.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(companies.error, '회사 목록을 불러오지 못했습니다.')}
       </p>
     );
   }
 
   return (
-    <div className="grid max-w-240 gap-4">
+    <div className="grid max-w-240 gap-5">
       <div className="flex justify-end">
         <CompanyCreateDialog />
       </div>
       {companies.data.companies.length === 0 ? (
-        <p className="text-sm text-muted-foreground">등록된 회사가 없습니다.</p>
+        <p className={`${pageSurface} px-6 py-10 text-center text-sm text-muted-foreground`}>
+          등록된 회사가 없습니다.
+        </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-border">
+        <div className={`${pageSurface} overflow-x-auto`}>
           <table className="w-full text-left text-sm">
             <caption className="sr-only">회사 목록</caption>
-            <thead className="border-b border-border">
+            <thead className={`border-b border-border ${tableHeaderSurface}`}>
               <tr>
-                <th scope="col" className="px-4 py-3 font-medium text-foreground">
+                <th
+                  scope="col"
+                  className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+                >
                   회사 명
                 </th>
-                <th scope="col" className="px-4 py-3 font-medium text-foreground">
+                <th
+                  scope="col"
+                  className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+                >
                   생성일
                 </th>
-                <th scope="col" className="px-4 py-3 font-medium text-foreground">
+                <th
+                  scope="col"
+                  className={`${tableHeaderSurface} px-4 py-3 font-medium text-foreground`}
+                >
                   상태
                 </th>
               </tr>

@@ -6,7 +6,7 @@ import { ConsultationCreateDialog } from '~/features/customers/components/Consul
 import { ConsultationEditDialog } from '~/features/customers/components/ConsultationEditDialog';
 import { ConsultationStatusForm } from '~/features/customers/components/ConsultationStatusForm';
 import { readQueryError } from '~/lib/formError';
-import { fieldLabel, fieldValue } from '~/lib/styles';
+import { fieldLabel, fieldValue, pageAlert, pageSurface } from '~/lib/styles';
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { JSX } from 'react';
@@ -59,7 +59,7 @@ function ConsultationCard({
   const consultedOn = formatConsultationCreatedAt(consultation.createdAt);
 
   return (
-    <article className="grid gap-3 rounded-xl bg-card p-4 ring-1 ring-border">
+    <article className={`${pageSurface} grid gap-3 p-5`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap gap-x-8 gap-y-2">
           <p className="flex items-center gap-2">
@@ -107,10 +107,14 @@ export function CustomerConsultationList({
   const [editing, setEditing] = useState<ConsultationListItem | null>(null);
   let body: JSX.Element;
   if (consultations.isPending) {
-    body = <Skeleton className="h-40 w-full" aria-hidden="true" />;
+    body = (
+      <div className={`${pageSurface} p-5`} aria-hidden="true">
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
   } else if (consultations.isError) {
     body = (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(consultations.error, '상담 이력을 불러오지 못했습니다.')}
       </p>
     );
@@ -133,7 +137,9 @@ export function CustomerConsultationList({
 
   return (
     <div className="grid gap-3">
-      <div className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-border sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className={`${pageSurface} flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between`}
+      >
         <h3 className="sr-only">상담 이력</h3>
         <ConsultationStatusForm key={customerId} customerId={customerId} status={status} />
         <ConsultationCreateDialog customerId={customerId} />

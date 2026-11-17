@@ -5,7 +5,7 @@ import { TodayWorkLists } from '~/features/today/components/TodayWorkLists';
 import { useTodayWork } from '~/features/today/hooks/useTodayWork';
 import { readQueryError } from '~/lib/formError';
 import { formatWon } from '~/lib/money';
-import { fieldLabel } from '~/lib/styles';
+import { fieldLabel, pageAlert, pageSurface } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX } from 'react';
@@ -42,7 +42,7 @@ function todayCards(work: TodayWork): TodayCard[] {
       key: 'overdueCustomerCount',
       label: '연체고객',
       value: formatCount(work.overdueCustomerCount, '명'),
-      emphasize: false,
+      emphasize: work.overdueCustomerCount > 0,
     },
     {
       key: 'overdueAmount',
@@ -53,20 +53,29 @@ function todayCards(work: TodayWork): TodayCard[] {
   ];
 }
 
+function SummarySkeleton(): JSX.Element {
+  return (
+    <div className={cn(pageSurface, 'h-28 p-5')}>
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="mt-4 h-8 w-28" />
+    </div>
+  );
+}
+
 function TodayWorkSkeleton(): JSX.Element {
   return (
-    <div className="grid gap-4" aria-hidden="true">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-28 w-full" />
+    <div className="grid gap-5" aria-hidden="true">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <SummarySkeleton />
+        <SummarySkeleton />
+        <SummarySkeleton />
+        <SummarySkeleton />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Skeleton className={cn(pageSurface, 'h-64 w-full')} />
+        <Skeleton className={cn(pageSurface, 'h-64 w-full')} />
       </div>
-      <Skeleton className="h-64 w-full" />
+      <Skeleton className={cn(pageSurface, 'h-64 w-full')} />
     </div>
   );
 }
@@ -80,23 +89,23 @@ export function TodayWorkPage(): JSX.Element {
 
   if (work.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(work.error, '오늘의 업무를 불러오지 못했습니다.')}
       </p>
     );
   }
 
   return (
-    <div className="grid gap-4">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-5">
+      <section className="grid auto-rows-fr gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <h2 className="sr-only">오늘의 업무 요약</h2>
         {todayCards(work.data).map((card) => (
-          <Card key={card.key}>
-            <CardHeader>
-              <p className={fieldLabel}>{card.label}</p>
+          <Card key={card.key} className="h-full shadow-none">
+            <CardHeader className="h-full content-start items-start justify-items-start gap-3">
+              <p className={cn(fieldLabel, 'w-full text-left')}>{card.label}</p>
               <p
                 className={cn(
-                  'text-2xl leading-9 font-semibold text-foreground',
+                  'text-center text-3xl leading-none font-semibold tracking-tight text-foreground tabular-nums',
                   card.emphasize && 'text-destructive',
                 )}
               >

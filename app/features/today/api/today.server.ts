@@ -96,12 +96,19 @@ async function readDueCases(
     orderBy: [{ customer: { name: 'asc' } }, { id: 'asc' }],
     select: {
       nextTask: true,
-      customer: { select: { id: true, name: true } },
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          assignee: { select: { name: true } },
+        },
+      },
     },
   });
   return cases.map((item) => ({
     customerId: item.customer.id,
     customerName: item.customer.name,
+    assigneeName: item.customer.assignee?.name ?? null,
     task: item.nextTask,
   }));
 }

@@ -17,6 +17,7 @@ import { useCustomerInstallments } from '~/features/customers/hooks/useCustomerI
 import { installmentScheduleLabel } from '~/features/customers/type';
 import { readQueryError } from '~/lib/formError';
 import { formatWon } from '~/lib/money';
+import { pageAlert, pageSurface } from '~/lib/styles';
 
 import type { JSX } from 'react';
 import type { InstallmentListItem } from '~/features/customers/type';
@@ -30,12 +31,16 @@ export function CustomerInstallmentList({ customerId }: CustomerInstallmentListP
   const [editing, setEditing] = useState<InstallmentListItem | null>(null);
 
   if (installments.isPending) {
-    return <Skeleton className="h-64 w-full" aria-hidden="true" />;
+    return (
+      <div className={`${pageSurface} p-5`} aria-hidden="true">
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
   }
 
   if (installments.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(installments.error, '분납 일정을 불러오지 못했습니다.')}
       </p>
     );
@@ -60,23 +65,23 @@ export function CustomerInstallmentList({ customerId }: CustomerInstallmentListP
           installments={installments.data.installments}
         />
       </div>
-      <div className="overflow-hidden rounded-xl bg-card ring-1 ring-border">
+      <div className={`${pageSurface} overflow-hidden`}>
         <Table>
           <caption className="sr-only">분납 내역</caption>
-          <TableHeader className="bg-muted">
-            <TableRow className="border-border hover:bg-muted">
-              <TableHead className="h-12 px-4 font-medium text-muted-foreground">회차</TableHead>
-              <TableHead className="h-12 px-4 font-medium text-muted-foreground">약속일</TableHead>
-              <TableHead className="h-12 px-4 text-right font-medium text-muted-foreground">
+          <TableHeader>
+            <TableRow className="border-border hover:bg-card">
+              <TableHead className="h-12 px-4 font-medium text-foreground">회차</TableHead>
+              <TableHead className="h-12 px-4 font-medium text-foreground">약속일</TableHead>
+              <TableHead className="h-12 px-4 text-right font-medium text-foreground">
                 예정액
               </TableHead>
-              <TableHead className="h-12 px-4 text-right font-medium text-muted-foreground">
+              <TableHead className="h-12 px-4 text-right font-medium text-foreground">
                 수납액
               </TableHead>
-              <TableHead className="h-12 px-4 text-right font-medium text-muted-foreground">
+              <TableHead className="h-12 px-4 text-right font-medium text-foreground">
                 미납액
               </TableHead>
-              <TableHead className="h-12 px-4 text-right font-medium text-muted-foreground">
+              <TableHead className="h-12 px-4 text-right font-medium text-foreground">
                 약속 변경
               </TableHead>
             </TableRow>

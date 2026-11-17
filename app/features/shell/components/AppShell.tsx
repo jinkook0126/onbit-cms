@@ -3,6 +3,7 @@ import { Outlet } from 'react-router';
 import { SidebarInset, SidebarProvider } from '~/components/ui/sidebar';
 import { AppHeader } from '~/features/shell/components/AppHeader';
 import { AppSidebar } from '~/features/shell/components/AppSidebar';
+import { pageCanvas } from '~/lib/styles';
 
 import type { JSX } from 'react';
 import type { ShellAccount } from '~/features/shell/type';
@@ -17,7 +18,7 @@ export function AppShell({ account }: AppShellProps): JSX.Element {
       <AppSidebar account={account} />
       <SidebarInset>
         <AppHeader />
-        <div className="flex-1 px-6 py-6 xl:px-8">
+        <div className={pageCanvas}>
           <Outlet />
         </div>
       </SidebarInset>

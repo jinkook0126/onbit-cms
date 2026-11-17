@@ -19,7 +19,7 @@ import {
 import { customerInstallmentTab, installmentScheduleLabel } from '~/features/customers/type';
 import { RECEIVABLE_PAGE_SIZE, receivableStatusLabels } from '~/features/receivables/type';
 import { formatWon } from '~/lib/money';
-import { focusRing } from '~/lib/styles';
+import { focusRing, pageSurface } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { PaginationState, Updater } from '@tanstack/react-table';
@@ -137,12 +137,12 @@ export function ReceivableDataTable({
   );
 
   return (
-    <div className="overflow-hidden rounded-xl bg-card ring-1 ring-border" aria-busy={isFetching}>
+    <div className={`${pageSurface} overflow-hidden`} aria-busy={isFetching}>
       <div className="min-h-80">
         <Table>
-          <TableHeader className="bg-muted">
+          <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="border-border hover:bg-muted">
+              <TableRow key={headerGroup.id} className="border-border hover:bg-card">
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}

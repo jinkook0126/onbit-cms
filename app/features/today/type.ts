@@ -8,6 +8,7 @@ export type TodayContact = {
 export type TodayCaseTask = {
   customerId: string;
   customerName: string;
+  assigneeName: string | null;
   task: string;
 };
 
@@ -81,6 +82,7 @@ function isTodayCaseTask(value: unknown): value is TodayCaseTask {
   return (
     typeof value.customerId === 'string' &&
     typeof value.customerName === 'string' &&
+    (value.assigneeName === null || typeof value.assigneeName === 'string') &&
     typeof value.task === 'string'
   );
 }

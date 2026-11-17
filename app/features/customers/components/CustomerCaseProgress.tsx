@@ -4,7 +4,7 @@ import { CaseProgressUpdateDialog } from '~/features/customers/components/CasePr
 import { useCustomerCaseProgress } from '~/features/customers/hooks/useCustomerCaseProgress';
 import { caseProgressStageLabels } from '~/features/customers/type';
 import { readQueryError } from '~/lib/formError';
-import { fieldLabel, fieldValue } from '~/lib/styles';
+import { fieldLabel, fieldValue, pageAlert, pageSurface } from '~/lib/styles';
 
 import type { JSX } from 'react';
 
@@ -18,12 +18,16 @@ export function CustomerCaseProgress({ customerId }: CustomerCaseProgressProps):
   const caseProgress = useCustomerCaseProgress(customerId);
 
   if (caseProgress.isPending) {
-    return <Skeleton className="h-28 w-full" aria-hidden="true" />;
+    return (
+      <div className={`${pageSurface} p-5`} aria-hidden="true">
+        <Skeleton className="h-20 w-full" />
+      </div>
+    );
   }
 
   if (caseProgress.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(caseProgress.error, '사건 진행을 불러오지 못했습니다.')}
       </p>
     );
@@ -36,7 +40,7 @@ export function CustomerCaseProgress({ customerId }: CustomerCaseProgressProps):
       <div className="flex justify-end">
         <CaseProgressUpdateDialog customerId={customerId} progress={caseProgress.data} />
       </div>
-      <section className="rounded-xl bg-card p-6 ring-1 ring-border">
+      <section className={`${pageSurface} p-6`}>
         <div className="grid gap-4 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
           <div className="grid content-center gap-2 sm:pr-6">
             <p className={fieldLabel}>진행단계</p>

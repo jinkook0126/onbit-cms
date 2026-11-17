@@ -26,7 +26,7 @@ import {
   formatCustomerPhone,
 } from '~/features/customers/type';
 import { readQueryError } from '~/lib/formError';
-import { fieldLabel, fieldValue } from '~/lib/styles';
+import { fieldLabel, fieldValue, pageAlert, pageSurface } from '~/lib/styles';
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
@@ -83,10 +83,13 @@ const customerDetailTabs: CustomerDetailTab[] = [
 
 function CustomerDetailSkeleton(): JSX.Element {
   return (
-    <div className="grid max-w-240 gap-6" aria-hidden="true">
-      <Skeleton className="h-36 w-full" />
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-64 w-full" />
+    <div className="grid max-w-240 gap-5" aria-hidden="true">
+      <div className={`${pageSurface} p-5`}>
+        <Skeleton className="h-28 w-full" />
+      </div>
+      <div className={`${pageSurface} p-5`}>
+        <Skeleton className="h-56 w-full" />
+      </div>
     </div>
   );
 }
@@ -207,7 +210,7 @@ export function CustomerDetailPage(): JSX.Element {
 
   if (customerId === '') {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         상담 고객을 찾을 수 없습니다.
       </p>
     );
@@ -219,7 +222,7 @@ export function CustomerDetailPage(): JSX.Element {
 
   if (customer.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(customer.error, '상담 고객을 불러오지 못했습니다.')}
       </p>
     );
@@ -233,8 +236,8 @@ export function CustomerDetailPage(): JSX.Element {
     : missingRecentConsultation;
 
   return (
-    <div className="grid max-w-240 gap-6">
-      <section className="rounded-xl bg-card p-6 ring-1 ring-border">
+    <div className="grid max-w-240 gap-5">
+      <section className={`${pageSurface} p-6`}>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
           <div className="grid min-w-0 gap-1 lg:w-72 lg:shrink-0 lg:pr-8">
             <p className={fieldLabel}>고객 정보</p>

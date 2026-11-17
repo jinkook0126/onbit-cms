@@ -6,12 +6,17 @@ import { ReceivableSearchForm } from '~/features/receivables/components/Receivab
 import { useReceivableList } from '~/features/receivables/hooks/useReceivableList';
 import { parseReceivableSearchField } from '~/features/receivables/type';
 import { readQueryError } from '~/lib/formError';
+import { pageAlert, pageSurface } from '~/lib/styles';
 
 import type { JSX } from 'react';
 import type { ReceivableSearchField } from '~/features/receivables/type';
 
 function ReceivableListSkeleton(): JSX.Element {
-  return <Skeleton className="h-80 w-full" aria-hidden="true" />;
+  return (
+    <div className={`${pageSurface} p-5`} aria-hidden="true">
+      <Skeleton className="h-72 w-full" />
+    </div>
+  );
 }
 
 function readPage(value: string | null): number {
@@ -72,7 +77,7 @@ export function ReceivableListPage(): JSX.Element {
     listBody = <ReceivableListSkeleton />;
   } else if (receivables.isError) {
     listBody = (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className={pageAlert}>
         {readQueryError(receivables.error, '분납 목록을 불러오지 못했습니다.')}
       </p>
     );
@@ -90,8 +95,8 @@ export function ReceivableListPage(): JSX.Element {
   }
 
   return (
-    <div className="grid gap-4">
-      <section className="grid gap-4 rounded-xl bg-card p-4 ring-1 ring-border">
+    <div className="grid gap-5">
+      <section className={`${pageSurface} grid gap-5 p-5`}>
         <h2 className="text-sm font-medium text-foreground">검색 조건</h2>
         <ReceivableSearchForm
           key={`${field}:${keyword}`}
