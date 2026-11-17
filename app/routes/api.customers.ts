@@ -118,6 +118,12 @@ export async function action({ request }: Route.ActionArgs): Promise<Response> {
       return jsonResponse({ id: result.id }, 200, headers);
     case 'invalid':
       return jsonResponse({ fieldErrors: result.fieldErrors }, 400, headers);
+    case 'duplicate':
+      return jsonResponse(
+        { formError: '같은 이름과 연락처의 고객이 이미 있습니다.' },
+        400,
+        headers,
+      );
     case 'anonymous':
       return jsonResponse({ formError: UNAUTHENTICATED_MESSAGE }, 401, headers);
     case 'forbidden':

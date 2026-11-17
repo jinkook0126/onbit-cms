@@ -20,6 +20,7 @@ import {
 } from '~/components/ui/table';
 import {
   CUSTOMER_PAGE_SIZE,
+  consultationStatusBadgeVariants,
   consultationStatusLabels,
   customerConsultationTab,
   formatCustomerPhone,
@@ -28,9 +29,9 @@ import {
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
-import type { PaginationState, Updater } from '@tanstack/react-table';
+import type { PaginationState, RowSelectionState, Updater } from '@tanstack/react-table';
 import type { JSX, MouseEvent } from 'react';
-import type { ConsultationStatus, CustomerListItem } from '~/features/customers/type';
+import type { CustomerListItem } from '~/features/customers/type';
 
 type CustomerDataTableProps = {
   customers: CustomerListItem[];
@@ -38,23 +39,14 @@ type CustomerDataTableProps = {
   page: number;
   isFetching: boolean;
   emptyMessage: string;
+  rowSelection: RowSelectionState;
   onPageChange: (page: number) => void;
+  onRowSelectionChange: (selection: RowSelectionState) => void;
 };
 
 const features = tableFeatures({ rowPaginationFeature, rowSelectionFeature });
 const columnHelper = createColumnHelper<typeof features, CustomerListItem>();
 const emptyCustomers: CustomerListItem[] = [];
-
-const statusVariants: Record<
-  ConsultationStatus,
-  'default' | 'secondary' | 'outline' | 'destructive'
-> = {
-  IN_CONSULTATION: 'default',
-  CONSIDERING: 'secondary',
-  ABSENT: 'outline',
-  REJECTED: 'destructive',
-  RETAINED: 'default',
-};
 
 function UnassignedBadge(): JSX.Element {
   return <Badge variant="outline">미정</Badge>;
@@ -160,7 +152,11 @@ const customerColumns = columnHelper.columns([
     header: '상담상태',
     cell: (context) => {
       const status = context.getValue();
-      return <Badge variant={statusVariants[status]}>{consultationStatusLabels[status]}</Badge>;
+      return (
+        <Badge variant={consultationStatusBadgeVariants[status]}>
+          {consultationStatusLabels[status]}
+        </Badge>
+      );
     },
   }),
   columnHelper.accessor('nextContactOn', {
@@ -181,7 +177,9 @@ export function CustomerDataTable({
   page,
   isFetching,
   emptyMessage,
+  rowSelection,
   onPageChange,
+  onRowSelectionChange,
 }: CustomerDataTableProps): JSX.Element {
   const navigate = useNavigate();
   const pageCount = Math.max(1, Math.ceil(total / CUSTOMER_PAGE_SIZE));
@@ -203,6 +201,10 @@ export function CustomerDataTable({
       autoResetPageIndex: false,
       state: {
         pagination: { pageIndex: page - 1, pageSize: CUSTOMER_PAGE_SIZE },
+        rowSelection,
+      },
+      onRowSelectionChange: (updater: Updater<RowSelectionState>) => {
+        onRowSelectionChange(typeof updater === 'function' ? updater(rowSelection) : updater);
       },
       onPaginationChange: (updater: Updater<PaginationState>) => {
         const current = { pageIndex: page - 1, pageSize: CUSTOMER_PAGE_SIZE };

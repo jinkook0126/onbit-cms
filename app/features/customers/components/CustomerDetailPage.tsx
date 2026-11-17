@@ -18,6 +18,7 @@ import { useCustomerConsultations } from '~/features/customers/hooks/useCustomer
 import { useCustomerDetail } from '~/features/customers/hooks/useCustomerDetail';
 import {
   caseProgressStageLabels,
+  consultationStatusBadgeVariants,
   consultationStatusLabels,
   customerCaseProgressTab,
   customerConsultationTab,
@@ -39,17 +40,6 @@ import type {
 const missingRecentConsultation = '없음';
 const customerCaseStageLabel = '서류 준비';
 const unassignedAssigneeLabel = '미정';
-
-const statusBadgeVariants: Record<
-  ConsultationStatus,
-  'default' | 'secondary' | 'outline' | 'destructive'
-> = {
-  IN_CONSULTATION: 'default',
-  CONSIDERING: 'secondary',
-  ABSENT: 'outline',
-  REJECTED: 'destructive',
-  RETAINED: 'default',
-};
 
 type CustomerDetailTab = {
   value: string;
@@ -268,7 +258,7 @@ export function CustomerDetailPage(): JSX.Element {
               </div>
               <div className="grid content-center gap-2 sm:px-6">
                 <p className={fieldLabel}>상담 상태</p>
-                <Badge variant={statusBadgeVariants[customer.data.status]}>
+                <Badge variant={consultationStatusBadgeVariants[customer.data.status]}>
                   {consultationStatusLabels[customer.data.status]}
                 </Badge>
               </div>

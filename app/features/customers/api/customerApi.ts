@@ -3,9 +3,11 @@ import {
   isCaseProgressUpdateResponse,
   isConsultationCreateResponse,
   isConsultationListResponse,
+  isCustomerAssigneeBatchResponse,
   isCustomerAssigneeResponse,
   isCustomerCreateResponse,
   isCustomerDetail,
+  isCustomerImportResponse,
   isCustomerListResponse,
   isCustomerRetainResponse,
   isCustomerStatusResponse,
@@ -25,9 +27,12 @@ import type {
   ConsultationCreateResponse,
   ConsultationCreateSubmission,
   ConsultationListResponse,
+  CustomerAssigneeBatchResponse,
+  CustomerAssigneeBatchSubmission,
   CustomerAssigneeResponse,
   CustomerCreateResponse,
   CustomerCreateSubmission,
+  CustomerImportResponse,
   CustomerDetail,
   CustomerListParams,
   CustomerListResponse,
@@ -48,6 +53,9 @@ import type {
 
 const customersApiPath = '/api/customers';
 const customerAssigneesApiPath = '/api/customers/assignees';
+const customerImportApiPath = '/api/customers/import';
+const customerImportTemplateApiPath = '/api/customers/import-template';
+const customerImportTemplateName = '상담고객_업로드_템플릿.xlsx';
 
 function customersPath(params: CustomerListParams): string {
   const search = new URLSearchParams();
@@ -86,6 +94,16 @@ export async function requestCustomerAssignees(
 ): Promise<CustomerAssigneeResponse> {
   const result = await apiClient(customerAssigneesApiPath, { signal });
   if (!result.ok || !isCustomerAssigneeResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCustomerAssigneeBatch(
+  submission: CustomerAssigneeBatchSubmission,
+): Promise<CustomerAssigneeBatchResponse> {
+  const result = await apiClient(customerAssigneesApiPath, { method: 'PATCH', body: submission });
+  if (!isCustomerAssigneeBatchResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;
@@ -282,6 +300,59 @@ export async function requestConsultationUpdate(
     throw new ApiError(result.status, result.body);
   }
   return result.body;
+}
+
+async function readResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (text.trim() === '') {
+    return null;
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+export async function requestCustomerImportTemplate(signal?: AbortSignal): Promise<void> {
+  const response = await fetch(customerImportTemplateApiPath, {
+    credentials: 'same-origin',
+    signal,
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, await readResponseBody(response));
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = customerImportTemplateName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function requestCustomerImport(
+  file: File,
+  signal?: AbortSignal,
+): Promise<CustomerImportResponse> {
+  const body = new FormData();
+  body.set('file', file);
+  const response = await fetch(customerImportApiPath, {
+    method: 'POST',
+    credentials: 'same-origin',
+    body,
+    signal,
+  });
+  const responseBody = await readResponseBody(response);
+  if (response.status >= 500) {
+    throw new ApiError(response.status, responseBody);
+  }
+  if (!isCustomerImportResponse(responseBody)) {
+    throw new ApiError(response.status, responseBody);
+  }
+  return responseBody;
 }
 
 export async function requestCustomerCreate(

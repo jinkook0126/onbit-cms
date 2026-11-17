@@ -1,8 +1,11 @@
 export const CUSTOMER_PAGE_SIZE = 15;
+export const MAX_CUSTOMER_ASSIGNEE_BATCH = 100;
 export const MAX_CUSTOMER_KEYWORD_LENGTH = 50;
 export const MAX_CUSTOMER_NAME_LENGTH = 30;
 export const MIN_CUSTOMER_PHONE_LENGTH = 8;
 export const MAX_CUSTOMER_PHONE_LENGTH = 12;
+export const MAX_CUSTOMER_IMPORT_ROWS = 500;
+export const MAX_CUSTOMER_IMPORT_FILE_BYTES = 2 * 1024 * 1024;
 export const MAX_CONSULTATION_CONTENT_LENGTH = 1000;
 export const MAX_RETAIN_AMOUNT = 2_000_000_000;
 const refundConsultationPrefixLimit = '환불 2,000,000,000원 · '.length;
@@ -101,6 +104,17 @@ export const customerSearchFieldLabels = {
 } as const;
 
 export type ConsultationStatus = keyof typeof consultationStatusLabels;
+
+export const consultationStatusBadgeVariants = {
+  IN_CONSULTATION: 'default',
+  CONSIDERING: 'secondary',
+  ABSENT: 'outline',
+  REJECTED: 'destructive',
+  RETAINED: 'success',
+} as const satisfies Record<
+  ConsultationStatus,
+  'default' | 'secondary' | 'outline' | 'destructive' | 'success'
+>;
 export type CaseType = keyof typeof caseTypeLabels;
 export type CaseProgressStage = keyof typeof caseProgressStageLabels;
 
@@ -180,6 +194,16 @@ export type CustomerAssigneeResponse = {
   assignees: CustomerAssigneeOption[];
 };
 
+export type CustomerAssigneeBatchSubmission = {
+  customerIds: string[];
+  assigneeId: string;
+};
+
+export type CustomerAssigneeBatchResponse = {
+  updatedCount?: number;
+  formError?: string;
+};
+
 export type CustomerCreateFieldErrors = {
   name?: string;
   phone?: string;
@@ -200,6 +224,24 @@ export type CustomerCreateResponse = {
   id?: string;
   fieldErrors?: CustomerCreateFieldErrors;
   formError?: string;
+};
+
+export type CustomerImportRowError = {
+  row: number;
+  message: string;
+};
+
+export type CustomerImportDuplicate = {
+  row: number;
+  name: string;
+  phone: string;
+};
+
+export type CustomerImportResponse = {
+  createdCount?: number;
+  formError?: string;
+  rowErrors?: CustomerImportRowError[];
+  duplicates?: CustomerImportDuplicate[];
 };
 
 export type ConsultationListItem = {
@@ -356,6 +398,34 @@ export function isCustomerAssigneeResponse(value: unknown): value is CustomerAss
   return value.assignees.every(isCustomerAssigneeOption);
 }
 
+export function isCustomerAssigneeBatchSubmission(
+  value: unknown,
+): value is CustomerAssigneeBatchSubmission {
+  if (
+    !isRecord(value) ||
+    typeof value.assigneeId !== 'string' ||
+    !Array.isArray(value.customerIds)
+  ) {
+    return false;
+  }
+  return value.customerIds.every((customerId) => typeof customerId === 'string');
+}
+
+export function isCustomerAssigneeBatchResponse(
+  value: unknown,
+): value is CustomerAssigneeBatchResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.updatedCount !== undefined && typeof value.updatedCount !== 'number') {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  return true;
+}
+
 function isCustomerCreateFieldErrors(value: unknown): value is CustomerCreateFieldErrors {
   if (!isRecord(value)) {
     return false;
@@ -447,6 +517,54 @@ export function isCustomerCreateResponse(value: unknown): value is CustomerCreat
     return false;
   }
   if (value.fieldErrors !== undefined && !isCustomerCreateFieldErrors(value.fieldErrors)) {
+    return false;
+  }
+  return true;
+}
+
+function isCustomerImportRowError(value: unknown): value is CustomerImportRowError {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.row === 'number' &&
+    Number.isSafeInteger(value.row) &&
+    typeof value.message === 'string'
+  );
+}
+
+function isCustomerImportDuplicate(value: unknown): value is CustomerImportDuplicate {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.row === 'number' &&
+    Number.isSafeInteger(value.row) &&
+    typeof value.name === 'string' &&
+    typeof value.phone === 'string'
+  );
+}
+
+export function isCustomerImportResponse(value: unknown): value is CustomerImportResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.createdCount !== undefined && typeof value.createdCount !== 'number') {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  if (
+    value.rowErrors !== undefined &&
+    (!Array.isArray(value.rowErrors) || !value.rowErrors.every(isCustomerImportRowError))
+  ) {
+    return false;
+  }
+  if (
+    value.duplicates !== undefined &&
+    (!Array.isArray(value.duplicates) || !value.duplicates.every(isCustomerImportDuplicate))
+  ) {
     return false;
   }
   return true;
