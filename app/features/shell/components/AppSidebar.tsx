@@ -14,23 +14,25 @@ import {
   useSidebar,
 } from '~/components/ui/sidebar';
 import { useLogout } from '~/features/shell/hooks/useLogout';
-import { shellNavItems, isShellNavActive } from '~/features/shell/nav';
+import { isShellNavActive, shellHomePath, visibleShellNavItems } from '~/features/shell/nav';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX } from 'react';
-import type { ShellAccount } from '~/features/shell/type';
+import type { ShellAccount, ShellRole } from '~/features/shell/type';
 
 type AppSidebarProps = {
   account: ShellAccount;
 };
 
-function ShellLogo(): JSX.Element {
+function ShellLogo({ role }: { role: ShellRole }): JSX.Element {
+  const home = shellHomePath(role);
+
   return (
     <SidebarHeader>
       <NavLink
-        to="/"
-        end
+        to={home}
+        end={home === '/'}
         aria-label="온빛 CMS"
         className={cn(
           'flex h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-sidebar-foreground',
@@ -45,7 +47,7 @@ function ShellLogo(): JSX.Element {
   );
 }
 
-function ShellNav(): JSX.Element {
+function ShellNav({ role }: { role: ShellRole }): JSX.Element {
   const { pathname } = useLocation();
 
   return (
@@ -53,7 +55,7 @@ function ShellNav(): JSX.Element {
       <SidebarGroup>
         <nav aria-label="주 메뉴">
           <SidebarMenu>
-            {shellNavItems.map((item) => {
+            {visibleShellNavItems(role).map((item) => {
               const Icon = item.icon;
               return (
                 <SidebarMenuItem key={item.to}>
@@ -136,8 +138,8 @@ function ShellAccount({ account }: AppSidebarProps): JSX.Element {
 export function AppSidebar({ account }: AppSidebarProps): JSX.Element {
   return (
     <Sidebar collapsible="icon">
-      <ShellLogo />
-      <ShellNav />
+      <ShellLogo role={account.role} />
+      <ShellNav role={account.role} />
       <ShellAccount account={account} />
     </Sidebar>
   );

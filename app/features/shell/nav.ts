@@ -7,6 +7,8 @@ import {
   WalletIcon,
 } from 'lucide-react';
 
+import type { ShellRole } from '~/features/shell/type';
+
 export const shellNavItems = [
   { to: '/', label: '오늘의업무', icon: CalendarCheckIcon },
   { to: '/customers', label: '상담고객', icon: UsersIcon },
@@ -17,6 +19,20 @@ export const shellNavItems = [
 ] as const;
 
 export type ShellNavItem = (typeof shellNavItems)[number];
+
+export function visibleShellNavItems(role: ShellRole): readonly ShellNavItem[] {
+  if (role === 'SUPER_ADMIN') {
+    return shellNavItems.filter((item) => item.to === '/settings');
+  }
+  return shellNavItems;
+}
+
+export function shellHomePath(role: ShellRole): '/' | '/settings' {
+  if (role === 'SUPER_ADMIN') {
+    return '/settings';
+  }
+  return '/';
+}
 
 export function isShellNavActive(pathname: string, item: ShellNavItem): boolean {
   if (item.to === '/') {

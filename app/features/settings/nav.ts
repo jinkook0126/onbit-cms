@@ -1,6 +1,7 @@
 import { Building2Icon, ContactIcon, UserRoundIcon, UsersIcon } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
+import type { ShellRole } from '~/features/shell/type';
 
 export type SettingsNavItem = {
   to: string;
@@ -53,6 +54,26 @@ export const settingsNavSections: readonly SettingsNavSection[] = [
     ],
   },
 ];
+
+function canSeeSettingsItem(role: ShellRole, to: string): boolean {
+  if (to === '/settings/companies') {
+    return role === 'SUPER_ADMIN';
+  }
+  if (to === '/settings/teams' || to === '/settings/employees') {
+    return role === 'COMPANY_ADMIN';
+  }
+  return true;
+}
+
+export function visibleSettingsNavSections(role: ShellRole): SettingsNavSection[] {
+  return settingsNavSections.flatMap((section) => {
+    const items = section.items.filter((item) => canSeeSettingsItem(role, item.to));
+    if (items.length === 0) {
+      return [];
+    }
+    return [{ ...section, items }];
+  });
+}
 
 export const settingsNavItems: readonly SettingsNavItem[] = settingsNavSections.flatMap(
   (section) => section.items,

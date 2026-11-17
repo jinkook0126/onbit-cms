@@ -39,7 +39,7 @@ export function loader({ context }: Route.LoaderArgs): ShellAccount {
     throw new Error('알 수 없는 사용자 권한입니다.');
   }
 
-  return { loginId: user.loginId, companyName: user.companyName };
+  return { loginId: user.loginId, role: user.role, companyName: user.companyName };
 }
 
 export default function AuthenticatedLayout({ loaderData }: Route.ComponentProps): JSX.Element {

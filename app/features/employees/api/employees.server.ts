@@ -81,13 +81,6 @@ function validateEmployee(loginId: string, name: string): EmployeeFieldErrors {
   return fieldErrors;
 }
 
-async function readCompanyOptions(): Promise<EmployeeCompanyOption[]> {
-  return prisma.company.findMany({
-    select: { id: true, name: true },
-    orderBy: [{ name: 'asc' }, { createdAt: 'asc' }],
-  });
-}
-
 function toEmployeeListItem(employee: {
   id: string;
   loginId: string;
@@ -134,37 +127,17 @@ async function readCompanyEmployees(
 
 export async function readEmployees(
   request: Request,
-  requestedCompanyId: string | null,
+  _requestedCompanyId: string | null,
 ): Promise<{ result: EmployeeListResult; headers: Headers }> {
   const { actor, headers } = await resolveOrganizationActor(request);
   if (actor.status !== 'ok') {
     return { result: actor, headers };
   }
-
-  if (actor.role === 'COMPANY_ADMIN') {
-    const scoped = await readCompanyEmployees(actor.companyId);
-    if (!scoped) {
-      return { result: { status: 'not-found' }, headers };
-    }
-    return {
-      result: {
-        status: 'ok',
-        company: scoped.company,
-        companies: [],
-        employees: scoped.employees,
-      },
-      headers,
-    };
+  if (actor.role !== 'COMPANY_ADMIN') {
+    return { result: { status: 'forbidden' }, headers };
   }
 
-  const companies = await readCompanyOptions();
-  if (!requestedCompanyId) {
-    return { result: { status: 'ok', company: null, companies, employees: [] }, headers };
-  }
-  if (!isUuid(requestedCompanyId)) {
-    return { result: { status: 'not-found' }, headers };
-  }
-  const scoped = await readCompanyEmployees(requestedCompanyId);
+  const scoped = await readCompanyEmployees(actor.companyId);
   if (!scoped) {
     return { result: { status: 'not-found' }, headers };
   }
@@ -172,7 +145,7 @@ export async function readEmployees(
     result: {
       status: 'ok',
       company: scoped.company,
-      companies,
+      companies: [],
       employees: scoped.employees,
     },
     headers,
@@ -183,11 +156,14 @@ export async function createEmployee(
   request: Request,
   loginId: string,
   name: string,
-  requestedCompanyId: string | undefined,
+  _requestedCompanyId: string | undefined,
 ): Promise<{ result: EmployeeCreateResult; headers: Headers }> {
   const { actor, headers } = await resolveOrganizationActor(request);
   if (actor.status !== 'ok') {
     return { result: actor, headers };
+  }
+  if (actor.role !== 'COMPANY_ADMIN') {
+    return { result: { status: 'forbidden' }, headers };
   }
 
   const fieldErrors = validateEmployee(loginId, name);
@@ -203,10 +179,7 @@ export async function createEmployee(
     };
   }
 
-  const companyId = actor.role === 'COMPANY_ADMIN' ? actor.companyId : requestedCompanyId;
-  if (!companyId || !isUuid(companyId)) {
-    return { result: { status: 'not-found' }, headers };
-  }
+  const companyId = actor.companyId;
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -264,6 +237,9 @@ export async function updateEmployeeTeam(
   if (actor.status !== 'ok') {
     return { result: actor, headers };
   }
+  if (actor.role !== 'COMPANY_ADMIN') {
+    return { result: { status: 'forbidden' }, headers };
+  }
   if (!isUuid(employeeId)) {
     return { result: { status: 'not-found' }, headers };
   }
@@ -276,7 +252,7 @@ export async function updateEmployeeTeam(
     return { result: { status: 'not-found' }, headers };
   }
   const companyId = employee.companyId;
-  if (actor.role === 'COMPANY_ADMIN' && companyId !== actor.companyId) {
+  if (companyId !== actor.companyId) {
     return { result: { status: 'not-found' }, headers };
   }
 

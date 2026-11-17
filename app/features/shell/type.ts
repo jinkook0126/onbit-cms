@@ -1,9 +1,10 @@
 const shellRoles = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'EMPLOYEE'] as const;
 
-type ShellRole = (typeof shellRoles)[number];
+export type ShellRole = (typeof shellRoles)[number];
 
 export type ShellAccount = {
   loginId: string;
+  role: ShellRole;
   companyName: string | null;
 };
 
