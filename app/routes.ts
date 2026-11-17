@@ -34,6 +34,8 @@ export default [
   route('api/today', 'routes/api.today.ts'),
   route('api/customers', 'routes/api.customers.ts'),
   route('api/customers/assignees', 'routes/api.customer-assignees.ts'),
+  route('api/customers/import-template', 'routes/api.customer-import-template.ts'),
+  route('api/customers/import', 'routes/api.customer-import.ts'),
   route(
     'api/customers/:customerId/consultations/:consultationId',
     'routes/api.customer-consultation.ts',

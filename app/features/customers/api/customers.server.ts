@@ -1,5 +1,6 @@
 import { syncLatestNextContact } from '~/features/customers/api/customerConsultations.server';
 import { formatContactDate, parseContactDate } from '~/features/customers/api/customerDates.server';
+import { readTakenCustomerKeys } from '~/features/customers/api/customerIdentity.server';
 import { buildInstallmentDrafts } from '~/features/customers/api/customerInstallments.server';
 import {
   customerVisibilityWhere,
@@ -8,6 +9,7 @@ import {
 } from '~/features/customers/api/customerScope.server';
 import {
   CUSTOMER_PAGE_SIZE,
+  MAX_CUSTOMER_ASSIGNEE_BATCH,
   MAX_CUSTOMER_KEYWORD_LENGTH,
   MAX_CUSTOMER_NAME_LENGTH,
   MAX_CUSTOMER_PHONE_LENGTH,
@@ -19,7 +21,7 @@ import {
   initialCaseProgressStage,
 } from '~/features/customers/type';
 import { prisma } from '~/lib/db.server';
-import { errorCodeLabel, isMissingRecord } from '~/lib/error.server';
+import { errorCodeLabel, isMissingRecord, isUniqueConflict } from '~/lib/error.server';
 import { isUuid } from '~/lib/uuid.server';
 
 import type {
@@ -221,6 +223,7 @@ export type CustomerCreateResult =
   | { status: 'anonymous' }
   | { status: 'forbidden' }
   | { status: 'invalid'; fieldErrors: CustomerCreateFieldErrors }
+  | { status: 'duplicate' }
   | { status: 'failed' };
 
 const NAME_REQUIRED_MESSAGE = '고객명을 입력하세요.';
@@ -287,6 +290,81 @@ export async function readCustomerAssignees(
     };
   } catch (error) {
     console.error('상담 담당 목록을 불러오지 못했습니다.', errorCodeLabel(error));
+    return { result: { status: 'failed' }, headers };
+  }
+}
+
+const assigneeBatchNotFound = 'AssigneeBatchNotFound';
+
+export type CustomerAssigneeBatchResult =
+  | { status: 'ok'; updatedCount: number }
+  | { status: 'anonymous' }
+  | { status: 'forbidden' }
+  | { status: 'invalid' }
+  | { status: 'bad-request' }
+  | { status: 'not-found' }
+  | { status: 'failed' };
+
+function isAssigneeBatchNotFound(error: unknown): boolean {
+  return error instanceof Error && error.name === assigneeBatchNotFound;
+}
+
+function assigneeBatchNotFoundError(): Error {
+  const error = new Error('선택한 고객을 찾지 못했습니다.');
+  error.name = assigneeBatchNotFound;
+  return error;
+}
+
+export async function assignCustomerAssignees(
+  request: Request,
+  customerIds: string[],
+  assigneeId: string,
+): Promise<{ result: CustomerAssigneeBatchResult; headers: Headers }> {
+  const { actor, headers } = await resolveCustomerActor(request);
+  if (actor.status !== 'ok') {
+    return { result: actor, headers };
+  }
+
+  const ids = [...new Set(customerIds)];
+  if (
+    ids.length < 1 ||
+    ids.length > MAX_CUSTOMER_ASSIGNEE_BATCH ||
+    ids.some((customerId) => !isUuid(customerId)) ||
+    !isUuid(assigneeId)
+  ) {
+    return { result: { status: 'bad-request' }, headers };
+  }
+
+  try {
+    const assignees = await readAssigneeOptions(actor);
+    if (!assignees.some((assignee) => assignee.id === assigneeId)) {
+      return { result: { status: 'invalid' }, headers };
+    }
+
+    const visibility = await customerVisibilityWhere(actor);
+    const updatedCount = await prisma.$transaction(async (tx) => {
+      const found = await tx.customer.findMany({
+        where: { id: { in: ids }, ...visibility },
+        select: { id: true },
+      });
+      if (found.length !== ids.length) {
+        throw assigneeBatchNotFoundError();
+      }
+      const updated = await tx.customer.updateMany({
+        where: { id: { in: ids }, ...visibility },
+        data: { assigneeId },
+      });
+      if (updated.count !== ids.length) {
+        throw assigneeBatchNotFoundError();
+      }
+      return updated.count;
+    });
+    return { result: { status: 'ok', updatedCount }, headers };
+  } catch (error) {
+    if (isAssigneeBatchNotFound(error)) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    console.error('상담 고객 담당을 등록하지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };
   }
 }
@@ -376,11 +454,20 @@ export async function createCustomer(
       };
     }
 
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
+    const taken = await readTakenCustomerKeys(actor.companyId, [
+      { name: trimmedName, phone: trimmedPhone },
+    ]);
+    if (taken.size > 0) {
+      return { result: { status: 'duplicate' }, headers };
+    }
+
     const customer = await prisma.customer.create({
       data: {
         companyId: actor.companyId,
-        name: name.trim(),
-        phone: phone.trim(),
+        name: trimmedName,
+        phone: trimmedPhone,
         source,
         assigneeId,
         nextContactOn: contactDate,
@@ -389,6 +476,9 @@ export async function createCustomer(
     });
     return { result: { status: 'ok', id: customer.id }, headers };
   } catch (error) {
+    if (isUniqueConflict(error)) {
+      return { result: { status: 'duplicate' }, headers };
+    }
     console.error('상담 고객을 등록하지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };
   }

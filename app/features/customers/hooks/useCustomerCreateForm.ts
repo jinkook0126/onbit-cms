@@ -7,12 +7,12 @@ import {
   requestCustomerCreate,
 } from '~/features/customers/api/customerApi';
 import { customerQueryKeys } from '~/features/customers/api/customerQuery';
+import { defaultAssigneeId } from '~/features/customers/assigneeOption';
 import { MAX_CUSTOMER_NAME_LENGTH, customerPhoneDigits } from '~/features/customers/type';
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ChangeEvent } from 'react';
 import type {
-  CustomerAssigneeOption,
   CustomerAssigneeResponse,
   CustomerCreateFieldErrors,
   CustomerCreateSubmission,
@@ -41,23 +41,6 @@ type CustomerCreateFormState = {
 };
 
 const transportErrorMessage = '상담 고객을 등록하지 못했습니다. 다시 시도하세요.';
-
-function defaultAssigneeId(
-  options: CustomerAssigneeOption[],
-  currentUserId: string | undefined,
-): string {
-  const self =
-    currentUserId === undefined
-      ? undefined
-      : options.find((assignee) => assignee.id === currentUserId);
-  if (self) {
-    return self.id;
-  }
-  if (options.length === 0) {
-    return '';
-  }
-  return options[0].id;
-}
 
 export function useCustomerCreateForm(): CustomerCreateFormState {
   const queryClient = useQueryClient();

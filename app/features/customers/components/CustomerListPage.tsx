@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { Skeleton } from '~/components/ui/skeleton';
+import { CustomerAssigneeBulkDialog } from '~/features/customers/components/CustomerAssigneeBulkDialog';
 import { CustomerCreateDrawer } from '~/features/customers/components/CustomerCreateDrawer';
 import { CustomerDataTable } from '~/features/customers/components/CustomerDataTable';
+import { CustomerImportDialog } from '~/features/customers/components/CustomerImportDialog';
 import { CustomerSearchForm } from '~/features/customers/components/CustomerSearchForm';
 import { CustomerStatusFilter } from '~/features/customers/components/CustomerStatusFilter';
 import { useCustomerList } from '~/features/customers/hooks/useCustomerList';
@@ -13,8 +16,13 @@ import {
 } from '~/features/customers/type';
 import { readQueryError } from '~/lib/formError';
 
+import type { RowSelectionState } from '@tanstack/react-table';
 import type { JSX } from 'react';
 import type { ConsultationStatus, CustomerSearchField } from '~/features/customers/type';
+
+function selectedCustomerIds(selection: RowSelectionState): string[] {
+  return Object.keys(selection);
+}
 
 function CustomerListSkeleton(): JSX.Element {
   return <Skeleton className="h-80 w-full" aria-hidden="true" />;
@@ -33,6 +41,7 @@ function readPage(value: string | null): number {
 
 export function CustomerListPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const field = parseCustomerSearchField(searchParams.get('field')) ?? 'name';
   const keyword = searchParams.get('q') ?? '';
   const status = parseConsultationStatus(searchParams.get('status'));
@@ -42,6 +51,7 @@ export function CustomerListPage(): JSX.Element {
   function replaceParams(update: (params: URLSearchParams) => void): void {
     const next = new URLSearchParams(searchParams);
     update(next);
+    setRowSelection({});
     setSearchParams(next, { replace: true });
   }
 
@@ -104,7 +114,9 @@ export function CustomerListPage(): JSX.Element {
         page={customers.data.page}
         isFetching={customers.isFetching}
         emptyMessage={emptyMessage}
+        rowSelection={rowSelection}
         onPageChange={changePage}
+        onRowSelectionChange={setRowSelection}
       />
     );
   }
@@ -122,9 +134,18 @@ export function CustomerListPage(): JSX.Element {
         <CustomerStatusFilter status={status} onStatusChange={changeStatus} />
       </section>
       <section className="grid gap-3">
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="sr-only">상담 고객 목록</h2>
-          <CustomerCreateDrawer />
+          <CustomerAssigneeBulkDialog
+            customerIds={selectedCustomerIds(rowSelection)}
+            onAssigned={() => {
+              setRowSelection({});
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <CustomerImportDialog />
+            <CustomerCreateDrawer />
+          </div>
         </div>
         {listBody}
       </section>
