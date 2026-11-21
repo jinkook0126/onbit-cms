@@ -1,7 +1,6 @@
 import {
   CalendarCheckIcon,
   ChartColumnIcon,
-  ScaleIcon,
   SettingsIcon,
   UsersIcon,
   WalletIcon,
@@ -12,7 +11,6 @@ import type { ShellRole } from '~/features/shell/type';
 export const shellNavItems = [
   { to: '/', label: '오늘의업무', icon: CalendarCheckIcon },
   { to: '/customers', label: '상담고객', icon: UsersIcon },
-  { to: '/cases', label: '사건현황', icon: ScaleIcon },
   { to: '/receivables', label: '분납/미수', icon: WalletIcon },
   { to: '/settlements', label: '월별 정산', icon: ChartColumnIcon },
   { to: '/settings', label: '설정', icon: SettingsIcon },

@@ -5,18 +5,16 @@ import {
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel } from '~/lib/error.server';
 
-import type { TodayCaseTask, TodayContact, TodayOverdueInstallment } from '~/features/today/type';
+import type { TodayContact, TodayOverdueInstallment } from '~/features/today/type';
 import type { Prisma } from '../../../../generated/prisma/client';
 
 export type TodayWorkResult =
   | {
       status: 'ok';
       recontactCount: number;
-      dueCaseCount: number;
       overdueCustomerCount: number;
       overdueAmount: number;
       contacts: TodayContact[];
-      cases: TodayCaseTask[];
       overdueInstallments: TodayOverdueInstallment[];
     }
   | { status: 'anonymous' }
@@ -81,36 +79,6 @@ async function readContacts(
       },
     ];
   });
-}
-
-async function readDueCases(
-  visibility: Prisma.CustomerWhereInput,
-  todayDate: Date,
-): Promise<TodayCaseTask[]> {
-  const cases = await prisma.customerCase.findMany({
-    where: {
-      taskDueOn: todayDate,
-      progressStage: { not: 'CLOSURE' },
-      customer: visibility,
-    },
-    orderBy: [{ customer: { name: 'asc' } }, { id: 'asc' }],
-    select: {
-      nextTask: true,
-      customer: {
-        select: {
-          id: true,
-          name: true,
-          assignee: { select: { name: true } },
-        },
-      },
-    },
-  });
-  return cases.map((item) => ({
-    customerId: item.customer.id,
-    customerName: item.customer.name,
-    assigneeName: item.customer.assignee?.name ?? null,
-    task: item.nextTask,
-  }));
 }
 
 function compareOverdue(left: TodayOverdueInstallment, right: TodayOverdueInstallment): number {
@@ -204,20 +172,17 @@ export async function readTodayWork(
     const visibility = await customerVisibilityWhere(actor);
     const today = seoulToday();
     const todayDate = seoulTodayDate(today);
-    const [contacts, cases, overdue] = await Promise.all([
+    const [contacts, overdue] = await Promise.all([
       readContacts(visibility, today, todayDate),
-      readDueCases(visibility, todayDate),
       readOverdue(visibility, todayDate),
     ]);
     return {
       result: {
         status: 'ok',
         recontactCount: contacts.length,
-        dueCaseCount: cases.length,
         overdueCustomerCount: overdue.customerCount,
         overdueAmount: overdue.amount,
         contacts,
-        cases,
         overdueInstallments: overdue.installments,
       },
       headers,

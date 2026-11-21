@@ -10,16 +10,15 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import { customerCaseProgressTab, customerConsultationTab } from '~/features/customers/type';
+import { customerConsultationTab } from '~/features/customers/type';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX, MouseEvent } from 'react';
-import type { TodayCaseTask, TodayContact } from '~/features/today/type';
+import type { TodayContact } from '~/features/today/type';
 
 type TodayWorkListsProps = {
   contacts: TodayContact[];
-  cases: TodayCaseTask[];
 };
 
 const labelCell = 'h-auto px-5 py-3 text-left text-sm font-medium text-foreground';
@@ -143,66 +142,11 @@ function TodayContactCard({ contacts }: { contacts: TodayContact[] }): JSX.Eleme
   return <TodayPanel title="오늘 연락할 고객">{body}</TodayPanel>;
 }
 
-function TodayCaseCard({ cases }: { cases: TodayCaseTask[] }): JSX.Element {
-  const navigate = useNavigate();
-  let body = (
-    <div className="px-5 pt-2 pb-5">
-      <TodayEmptyState message="확인할 사건이 없습니다." />
-    </div>
-  );
-  if (cases.length > 0) {
-    body = (
-      <Table className="table-fixed">
-        <caption className="sr-only">확인할 사건</caption>
-        <colgroup>
-          <col className="w-[26%]" />
-          <col className="w-[22%]" />
-          <col className="w-[52%]" />
-        </colgroup>
-        <TableHeader>
-          <TableRow className="border-border hover:bg-card">
-            <TableHead className={labelCell}>고객</TableHead>
-            <TableHead className={labelCell}>담당</TableHead>
-            <TableHead className={labelCell}>다음 할 일</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {cases.map((item) => (
-            <TableRow
-              key={item.customerId}
-              className="cursor-pointer border-border/70"
-              onClick={(event) => {
-                openCustomer(navigate, item.customerId, customerCaseProgressTab, event);
-              }}
-            >
-              <TableCell className={nameCell}>
-                <CustomerLink
-                  customerId={item.customerId}
-                  tab={customerCaseProgressTab}
-                  name={item.customerName}
-                  className="block truncate"
-                />
-              </TableCell>
-              <TableCell className={nameCell}>
-                <AssigneeName name={item.assigneeName} />
-              </TableCell>
-              <TableCell className={textCell}>{item.task}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    );
-  }
-
-  return <TodayPanel title="확인할 사건">{body}</TodayPanel>;
-}
-
-export function TodayWorkLists({ contacts, cases }: TodayWorkListsProps): JSX.Element {
+export function TodayWorkLists({ contacts }: TodayWorkListsProps): JSX.Element {
   return (
-    <section className="grid items-stretch gap-5 lg:grid-cols-2">
+    <section>
       <h2 className="sr-only">오늘의 목록</h2>
       <TodayContactCard contacts={contacts} />
-      <TodayCaseCard cases={cases} />
     </section>
   );
 }

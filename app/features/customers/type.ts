@@ -15,7 +15,6 @@ export const MAX_INSTALLMENT_COUNT = 120;
 const promiseChangePrefixLimit = `${MAX_INSTALLMENT_COUNT}회차 납기 0000-00-00 -> 0000-00-00 / `
   .length;
 export const MAX_PROMISE_REASON_LENGTH = MAX_CONSULTATION_CONTENT_LENGTH - promiseChangePrefixLimit;
-export const MAX_CASE_NEXT_TASK_LENGTH = 200;
 
 export function customerPhoneDigits(value: string): string {
   return value.replace(/\D/g, '').slice(0, MAX_CUSTOMER_PHONE_LENGTH);
@@ -71,19 +70,9 @@ export const caseTypeLabels = {
   PERSONAL_WORKOUT: '개인워크아웃',
   FAST_DEBT_ADJUSTMENT: '신속채무조정',
   FRESH_START_FUND: '새출발기금',
+  REHABILITATION_AND_CREDIT_RECOVERY: '개회+신복위',
+  OTHER: '기타',
 } as const;
-
-export const caseProgressStageLabels = {
-  DOCUMENT_COLLECTION: '서류수집',
-  CORRECTION: '보정',
-  FILING: '접수',
-  COMMENCEMENT: '개시',
-  APPROVAL: '인가',
-  CLOSURE: '종결',
-} as const;
-
-export const initialCaseProgressStage = 'DOCUMENT_COLLECTION' satisfies CaseProgressStage;
-export const initialCaseNextTask = '서류 요청';
 
 export const inflowSourceLabels = {
   HOMEPAGE: '홈페이지',
@@ -95,7 +84,6 @@ export const inflowSourceLabels = {
 
 export const customerInstallmentTab = 'installments';
 export const customerConsultationTab = 'consultations';
-export const customerCaseProgressTab = 'case-progress';
 
 export const customerSearchFieldLabels = {
   name: '이름',
@@ -116,31 +104,12 @@ export const consultationStatusBadgeVariants = {
   'default' | 'secondary' | 'outline' | 'destructive' | 'success'
 >;
 export type CaseType = keyof typeof caseTypeLabels;
-export type CaseProgressStage = keyof typeof caseProgressStageLabels;
 
-export type CaseProgress = {
-  stage: CaseProgressStage;
-  nextTask: string;
-  taskDueOn: string | null;
-};
+const caseTypes = Object.keys(caseTypeLabels);
 
-export type CaseProgressUpdateFieldErrors = {
-  stage?: string;
-  nextTask?: string;
-  taskDueOn?: string;
-};
-
-export type CaseProgressUpdateSubmission = {
-  stage: string;
-  nextTask: string;
-  taskDueOn: string | null;
-};
-
-export type CaseProgressUpdateResponse = {
-  id?: string;
-  fieldErrors?: CaseProgressUpdateFieldErrors;
-  formError?: string;
-};
+export function isCaseType(value: unknown): value is CaseType {
+  return typeof value === 'string' && caseTypes.includes(value);
+}
 
 export type CustomerSummary = {
   totalAmount: number;
@@ -168,6 +137,7 @@ export type CustomerDetail = {
   phone: string;
   assigneeName: string | null;
   status: ConsultationStatus;
+  caseType: CaseType | null;
 };
 
 export type CustomerListResponse = {
@@ -314,12 +284,22 @@ export function isCustomerDetail(value: unknown): value is CustomerDetail {
     typeof value.name === 'string' &&
     typeof value.phone === 'string' &&
     isNullableString(value.assigneeName) &&
-    isConsultationStatus(value.status)
+    isConsultationStatus(value.status) &&
+    (value.caseType === null || isCaseType(value.caseType))
   );
 }
 
 export type CustomerStatusSubmission = {
   status: ConsultationStatus;
+};
+
+export type CustomerCaseTypeSubmission = {
+  caseType: CaseType;
+};
+
+export type CustomerCaseTypeResponse = {
+  caseType?: CaseType;
+  formError?: string;
 };
 
 export type CustomerStatusResponse = {
@@ -353,6 +333,20 @@ export type CustomerRetainResponse = {
 
 export function isCustomerStatusSubmission(value: unknown): value is CustomerStatusSubmission {
   return isRecord(value) && isConsultationStatus(value.status);
+}
+
+export function isCustomerCaseTypeSubmission(value: unknown): value is CustomerCaseTypeSubmission {
+  return isRecord(value) && isCaseType(value.caseType);
+}
+
+export function isCustomerCaseTypeResponse(value: unknown): value is CustomerCaseTypeResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  return value.caseType === undefined || isCaseType(value.caseType);
 }
 
 export function isCustomerStatusResponse(value: unknown): value is CustomerStatusResponse {
@@ -679,12 +673,6 @@ function isInstallmentListItem(value: unknown): value is InstallmentListItem {
   );
 }
 
-const caseProgressStages = Object.keys(caseProgressStageLabels);
-
-export function isCaseProgressStage(value: unknown): value is CaseProgressStage {
-  return typeof value === 'string' && caseProgressStages.includes(value);
-}
-
 function isWonAmount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
@@ -700,54 +688,6 @@ export function isCustomerSummary(value: unknown): value is CustomerSummary {
     isWonAmount(value.remainingRetainer) &&
     isWonAmount(value.overdue)
   );
-}
-
-export function isCaseProgress(value: unknown): value is CaseProgress {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return (
-    isCaseProgressStage(value.stage) &&
-    typeof value.nextTask === 'string' &&
-    (value.taskDueOn === null || typeof value.taskDueOn === 'string')
-  );
-}
-
-export function isCaseProgressUpdateSubmission(
-  value: unknown,
-): value is CaseProgressUpdateSubmission {
-  return (
-    isRecord(value) &&
-    typeof value.stage === 'string' &&
-    typeof value.nextTask === 'string' &&
-    (value.taskDueOn === null || typeof value.taskDueOn === 'string')
-  );
-}
-
-function isCaseProgressUpdateFieldErrors(value: unknown): value is CaseProgressUpdateFieldErrors {
-  if (!isRecord(value)) {
-    return false;
-  }
-  const stage = value.stage === undefined || typeof value.stage === 'string';
-  const nextTask = value.nextTask === undefined || typeof value.nextTask === 'string';
-  const taskDueOn = value.taskDueOn === undefined || typeof value.taskDueOn === 'string';
-  return stage && nextTask && taskDueOn;
-}
-
-export function isCaseProgressUpdateResponse(value: unknown): value is CaseProgressUpdateResponse {
-  if (!isRecord(value)) {
-    return false;
-  }
-  if (value.id !== undefined && typeof value.id !== 'string') {
-    return false;
-  }
-  if (value.formError !== undefined && typeof value.formError !== 'string') {
-    return false;
-  }
-  if (value.fieldErrors !== undefined && !isCaseProgressUpdateFieldErrors(value.fieldErrors)) {
-    return false;
-  }
-  return true;
 }
 
 export function isInstallmentListResponse(value: unknown): value is InstallmentListResponse {

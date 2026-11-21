@@ -17,8 +17,7 @@ import {
   MAX_RETAIN_AMOUNT,
   MIN_CUSTOMER_PHONE_LENGTH,
   caseTypeLabels,
-  initialCaseNextTask,
-  initialCaseProgressStage,
+  isCaseType,
 } from '~/features/customers/type';
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel, isMissingRecord, isUniqueConflict } from '~/lib/error.server';
@@ -65,14 +64,6 @@ const consultationStatuses: readonly ConsultationStatus[] = [
 
 const inflowSources: readonly InflowSource[] = ['HOMEPAGE', 'NAVER', 'REFERRAL', 'PHONE', 'OTHER'];
 
-const caseTypes: readonly CaseType[] = [
-  'PERSONAL_REHABILITATION',
-  'PERSONAL_BANKRUPTCY',
-  'PERSONAL_WORKOUT',
-  'FAST_DEBT_ADJUSTMENT',
-  'FRESH_START_FUND',
-];
-
 export type CustomerListQuery = {
   field: CustomerSearchField;
   keyword: string;
@@ -86,10 +77,6 @@ function isConsultationStatus(value: string): value is ConsultationStatus {
 
 function isInflowSource(value: string): value is InflowSource {
   return inflowSources.some((source) => source === value);
-}
-
-function isCaseType(value: string): value is CaseType {
-  return caseTypes.some((caseType) => caseType === value);
 }
 
 function keywordWhere(field: CustomerSearchField, keyword: string): Prisma.CustomerWhereInput {
@@ -510,6 +497,7 @@ function toCustomerDetail(customer: AccessibleCustomer): CustomerDetail | null {
     phone: customer.phone,
     assigneeName: customer.assignee?.name ?? null,
     status: customer.status,
+    caseType: null,
   };
 }
 
@@ -530,6 +518,13 @@ export async function readCustomer(
     const detail = toCustomerDetail(customer);
     if (!detail) {
       return { result: { status: 'not-found' }, headers };
+    }
+    const customerCase = await prisma.customerCase.findUnique({
+      where: { customerId: customer.id },
+      select: { caseType: true },
+    });
+    if (customerCase && isCaseType(customerCase.caseType)) {
+      detail.caseType = customerCase.caseType;
     }
     return { result: { status: 'ok', customer: detail }, headers };
   } catch (error) {
@@ -577,6 +572,72 @@ export async function updateCustomerStatus(
       return { result: { status: 'not-found' }, headers };
     }
     console.error('상담 상태를 변경하지 못했습니다.', errorCodeLabel(error));
+    return { result: { status: 'failed' }, headers };
+  }
+}
+
+export type CustomerCaseTypeResult =
+  | { status: 'ok'; caseType: CaseType }
+  | { status: 'anonymous' }
+  | { status: 'forbidden' }
+  | { status: 'not-found' }
+  | { status: 'missing-case' }
+  | { status: 'failed' };
+
+export async function updateCustomerCaseType(
+  request: Request,
+  customerId: string,
+  caseType: CaseType,
+): Promise<{ result: CustomerCaseTypeResult; headers: Headers }> {
+  const { actor, headers } = await resolveCustomerActor(request);
+  if (actor.status !== 'ok') {
+    return { result: actor, headers };
+  }
+
+  try {
+    const customer = await readAccessibleCustomer(actor, customerId);
+    if (!customer) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    const outcome = await prisma.$transaction(async (tx) => {
+      const existing = await tx.customerCase.findUnique({
+        where: { customerId: customer.id },
+        select: { caseType: true },
+      });
+      if (!existing || !isCaseType(existing.caseType)) {
+        return { status: 'missing-case' } as const;
+      }
+      if (existing.caseType === caseType) {
+        return { status: 'ok', caseType } as const;
+      }
+      const updated = await tx.customerCase.updateMany({
+        where: { customerId: customer.id, caseType: existing.caseType },
+        data: { caseType },
+      });
+      if (updated.count !== 1) {
+        const current = await tx.customerCase.findUnique({
+          where: { customerId: customer.id },
+          select: { caseType: true },
+        });
+        if (!current || !isCaseType(current.caseType)) {
+          return { status: 'missing-case' } as const;
+        }
+        return { status: 'ok', caseType: current.caseType } as const;
+      }
+      await tx.consultation.create({
+        data: {
+          customerId: customer.id,
+          content: `사건 유형 변경 - ${caseTypeLabels[existing.caseType]} -> ${caseTypeLabels[caseType]}`,
+          nextContactOn: null,
+          actorId: actor.userId,
+        },
+      });
+      await syncLatestNextContact(tx, customer.id);
+      return { status: 'ok', caseType } as const;
+    });
+    return { result: outcome, headers };
+  } catch (error) {
+    console.error('사건 유형을 변경하지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };
   }
 }
@@ -759,9 +820,6 @@ export async function retainCustomer(
           deposit: input.deposit,
           installmentCount: input.installmentCount,
           firstPaymentOn: input.firstPaymentOn,
-          progressStage: initialCaseProgressStage,
-          nextTask: initialCaseNextTask,
-          taskDueOn: null,
         },
         select: { id: true },
       });

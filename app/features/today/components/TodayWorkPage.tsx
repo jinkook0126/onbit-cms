@@ -33,12 +33,6 @@ function todayCards(work: TodayWork): TodayCard[] {
       emphasize: false,
     },
     {
-      key: 'dueCaseCount',
-      label: '사건 기한 도래',
-      value: formatCount(work.dueCaseCount, '건'),
-      emphasize: false,
-    },
-    {
       key: 'overdueCustomerCount',
       label: '연체고객',
       value: formatCount(work.overdueCustomerCount, '명'),
@@ -65,16 +59,12 @@ function SummarySkeleton(): JSX.Element {
 function TodayWorkSkeleton(): JSX.Element {
   return (
     <div className="grid gap-5" aria-hidden="true">
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <SummarySkeleton />
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <SummarySkeleton />
         <SummarySkeleton />
         <SummarySkeleton />
       </div>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Skeleton className={cn(pageSurface, 'h-64 w-full')} />
-        <Skeleton className={cn(pageSurface, 'h-64 w-full')} />
-      </div>
+      <Skeleton className={cn(pageSurface, 'h-64 w-full')} />
       <Skeleton className={cn(pageSurface, 'h-64 w-full')} />
     </div>
   );
@@ -97,7 +87,7 @@ export function TodayWorkPage(): JSX.Element {
 
   return (
     <div className="grid gap-5">
-      <section className="grid auto-rows-fr gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid auto-rows-fr gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <h2 className="sr-only">오늘의 업무 요약</h2>
         {todayCards(work.data).map((card) => (
           <Card key={card.key} className="h-full shadow-none">
@@ -115,7 +105,7 @@ export function TodayWorkPage(): JSX.Element {
           </Card>
         ))}
       </section>
-      <TodayWorkLists contacts={work.data.contacts} cases={work.data.cases} />
+      <TodayWorkLists contacts={work.data.contacts} />
       <TodayOverdueCard installments={work.data.overdueInstallments} />
     </div>
   );

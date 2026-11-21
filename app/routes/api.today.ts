@@ -20,11 +20,9 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
       return jsonResponse(
         {
           recontactCount: result.recontactCount,
-          dueCaseCount: result.dueCaseCount,
           overdueCustomerCount: result.overdueCustomerCount,
           overdueAmount: result.overdueAmount,
           contacts: result.contacts,
-          cases: result.cases,
           overdueInstallments: result.overdueInstallments,
         },
         200,

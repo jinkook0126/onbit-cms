@@ -12,8 +12,6 @@ export const customerQueryKeys = {
   installments: (customerId: string) =>
     [...customerQueryKeys.all, 'installments', customerId] as const,
   ledger: (customerId: string) => [...customerQueryKeys.all, 'ledger', customerId] as const,
-  caseProgress: (customerId: string) =>
-    [...customerQueryKeys.all, 'case-progress', customerId] as const,
   summary: (customerId: string) => [...customerQueryKeys.all, 'summary', customerId] as const,
   assignees: () => [...customerQueryKeys.all, 'assignees'] as const,
 };

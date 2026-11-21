@@ -5,13 +5,6 @@ export type TodayContact = {
   content: string;
 };
 
-export type TodayCaseTask = {
-  customerId: string;
-  customerName: string;
-  assigneeName: string | null;
-  task: string;
-};
-
 export type TodayOverdueInstallment = {
   id: string;
   customerId: string;
@@ -26,11 +19,9 @@ export type TodayOverdueInstallment = {
 
 export type TodayWork = {
   recontactCount: number;
-  dueCaseCount: number;
   overdueCustomerCount: number;
   overdueAmount: number;
   contacts: TodayContact[];
-  cases: TodayCaseTask[];
   overdueInstallments: TodayOverdueInstallment[];
 };
 
@@ -75,31 +66,16 @@ function isTodayOverdueInstallment(value: unknown): value is TodayOverdueInstall
   );
 }
 
-function isTodayCaseTask(value: unknown): value is TodayCaseTask {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return (
-    typeof value.customerId === 'string' &&
-    typeof value.customerName === 'string' &&
-    (value.assigneeName === null || typeof value.assigneeName === 'string') &&
-    typeof value.task === 'string'
-  );
-}
-
 export function isTodayWork(value: unknown): value is TodayWork {
   if (!isRecord(value)) {
     return false;
   }
   return (
     isCount(value.recontactCount) &&
-    isCount(value.dueCaseCount) &&
     isCount(value.overdueCustomerCount) &&
     isCount(value.overdueAmount) &&
     Array.isArray(value.contacts) &&
     value.contacts.every(isTodayContact) &&
-    Array.isArray(value.cases) &&
-    value.cases.every(isTodayCaseTask) &&
     Array.isArray(value.overdueInstallments) &&
     value.overdueInstallments.every(isTodayOverdueInstallment)
   );

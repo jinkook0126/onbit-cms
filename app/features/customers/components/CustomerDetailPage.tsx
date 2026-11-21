@@ -1,11 +1,11 @@
-import { BookOpenIcon, ListChecksIcon, MessagesSquareIcon, ReceiptTextIcon } from 'lucide-react';
+import { BookOpenIcon, MessagesSquareIcon, ReceiptTextIcon } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router';
 
 import { Badge } from '~/components/ui/badge';
 import { Skeleton } from '~/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
+import { CaseTypeForm } from '~/features/customers/components/CaseTypeForm';
 import { CustomerBillingSummary } from '~/features/customers/components/CustomerBillingSummary';
-import { CustomerCaseProgress } from '~/features/customers/components/CustomerCaseProgress';
 import {
   CustomerConsultationList,
   formatConsultationCreatedAt,
@@ -13,14 +13,11 @@ import {
 import { CustomerInstallmentList } from '~/features/customers/components/CustomerInstallmentList';
 import { CustomerLedgerList } from '~/features/customers/components/CustomerLedgerList';
 import { RetainCustomerButton } from '~/features/customers/components/RetainCustomerButton';
-import { useCustomerCaseProgress } from '~/features/customers/hooks/useCustomerCaseProgress';
 import { useCustomerConsultations } from '~/features/customers/hooks/useCustomerConsultations';
 import { useCustomerDetail } from '~/features/customers/hooks/useCustomerDetail';
 import {
-  caseProgressStageLabels,
   consultationStatusBadgeVariants,
   consultationStatusLabels,
-  customerCaseProgressTab,
   customerConsultationTab,
   customerInstallmentTab,
   formatCustomerPhone,
@@ -31,15 +28,11 @@ import { fieldLabel, fieldValue, pageAlert, pageSurface } from '~/lib/styles';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import type { JSX } from 'react';
-import type {
-  CaseProgress,
-  ConsultationListResponse,
-  ConsultationStatus,
-} from '~/features/customers/type';
+import type { ConsultationListResponse, ConsultationStatus } from '~/features/customers/type';
 
 const missingRecentConsultation = '없음';
-const customerCaseStageLabel = '서류 준비';
 const unassignedAssigneeLabel = '미정';
+const missingCaseTypeLabel = '미정';
 
 type CustomerDetailTab = {
   value: string;
@@ -64,13 +57,6 @@ const customerDetailTabs: CustomerDetailTab[] = [
     description:
       '상담 일자와 통화·방문 내용을 기록하는 영역입니다. 다음 단계에서 내용을 채워 넣습니다.',
     icon: MessagesSquareIcon,
-  },
-  {
-    value: customerCaseProgressTab,
-    label: '사건진행',
-    title: '사건 진행 영역',
-    description: '사건 단계와 진행 내용을 기록하는 영역입니다. 수임 전환 후 입력하실 수 있습니다.',
-    icon: ListChecksIcon,
   },
   {
     value: 'ledger',
@@ -132,9 +118,6 @@ function renderCustomerDetailTab(
   if (tab.value === 'ledger' && status === 'RETAINED') {
     return <CustomerLedgerList customerId={customerId} />;
   }
-  if (tab.value === 'case-progress' && status === 'RETAINED') {
-    return <CustomerCaseProgress customerId={customerId} />;
-  }
   return <CustomerDetailTabEmpty title={tab.title} description={tab.description} icon={tab.icon} />;
 }
 
@@ -180,32 +163,12 @@ function CustomerDetailTabs({
   );
 }
 
-function CustomerCaseStage({
-  status,
-  caseProgress,
-}: {
-  status: ConsultationStatus;
-  caseProgress: UseQueryResult<CaseProgress>;
-}): JSX.Element {
-  if (status !== 'RETAINED') {
-    return <p className={fieldValue}>{customerCaseStageLabel}</p>;
-  }
-  if (caseProgress.isError) {
-    return <p className="text-sm text-destructive">사건 단계를 불러오지 못했습니다.</p>;
-  }
-  if (!caseProgress.isSuccess) {
-    return <Skeleton className="h-5 w-16" aria-hidden="true" />;
-  }
-  return <p className={fieldValue}>{caseProgressStageLabels[caseProgress.data.stage]}</p>;
-}
-
 export function CustomerDetailPage(): JSX.Element {
   const params = useParams();
   const [searchParams] = useSearchParams();
   const customerId = params.customerId ?? '';
   const detailTab = customerDetailTab(searchParams.get('tab'));
   const customer = useCustomerDetail(customerId);
-  const caseProgress = useCustomerCaseProgress(customerId, customer.data?.status === 'RETAINED');
   const consultations = useCustomerConsultations(customerId, customer.isSuccess);
 
   if (customerId === '') {
@@ -266,8 +229,18 @@ export function CustomerDetailPage(): JSX.Element {
                 </Badge>
               </div>
               <div className="grid content-center gap-2 sm:px-6">
-                <p className={fieldLabel}>사건 단계</p>
-                <CustomerCaseStage status={customer.data.status} caseProgress={caseProgress} />
+                {customer.data.caseType ? (
+                  <CaseTypeForm
+                    key={customer.data.id}
+                    customerId={customer.data.id}
+                    caseType={customer.data.caseType}
+                  />
+                ) : (
+                  <>
+                    <p className={fieldLabel}>사건 유형</p>
+                    <Badge variant="outline">{missingCaseTypeLabel}</Badge>
+                  </>
+                )}
               </div>
             </div>
             {customer.data.status === 'RETAINED' ? null : (

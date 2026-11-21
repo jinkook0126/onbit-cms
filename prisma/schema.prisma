@@ -52,26 +52,12 @@ enum CaseType {
   FAST_DEBT_ADJUSTMENT
   /// 새출발기금
   FRESH_START_FUND
+  /// 개회와 신복위를 함께 진행한다.
+  REHABILITATION_AND_CREDIT_RECOVERY
+  /// 기타
+  OTHER
 
   @@map("case_type")
-}
-
-/// 사건 진행 단계. 수임하면 서류수집부터 시작한다.
-enum CaseProgressStage {
-  /// 서류수집
-  DOCUMENT_COLLECTION
-  /// 보정
-  CORRECTION
-  /// 접수
-  FILING
-  /// 개시
-  COMMENCEMENT
-  /// 인가
-  APPROVAL
-  /// 종결
-  CLOSURE
-
-  @@map("case_progress_stage")
 }
 
 /// 분납 일정의 구분. 계약금은 한 줄이고, 회차는 분납 회수만큼 있다.
@@ -248,12 +234,6 @@ model CustomerCase {
   installmentCount Int               @map("installment_count")
   /// 첫 회차 납부일.
   firstPaymentOn   DateTime          @map("first_payment_on") @db.Date
-  /// 진행 단계. 수임 직후는 서류수집이다.
-  progressStage    CaseProgressStage @default(DOCUMENT_COLLECTION) @map("progress_stage")
-  /// 다음 할 일. 수임 직후는 서류 요청이다.
-  nextTask         String            @default("서류 요청") @map("next_task")
-  /// 업무 기한. 아직 없으면 NULL이고 화면에는 미정이다.
-  taskDueOn        DateTime?         @map("task_due_on") @db.Date
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 

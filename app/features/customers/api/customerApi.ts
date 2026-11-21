@@ -1,10 +1,9 @@
 import {
-  isCaseProgress,
-  isCaseProgressUpdateResponse,
   isConsultationCreateResponse,
   isConsultationListResponse,
   isCustomerAssigneeBatchResponse,
   isCustomerAssigneeResponse,
+  isCustomerCaseTypeResponse,
   isCustomerCreateResponse,
   isCustomerDetail,
   isCustomerImportResponse,
@@ -21,15 +20,14 @@ import {
 import { ApiError, apiClient } from '~/lib/apiClient';
 
 import type {
-  CaseProgress,
-  CaseProgressUpdateResponse,
-  CaseProgressUpdateSubmission,
   ConsultationCreateResponse,
   ConsultationCreateSubmission,
   ConsultationListResponse,
   CustomerAssigneeBatchResponse,
   CustomerAssigneeBatchSubmission,
   CustomerAssigneeResponse,
+  CustomerCaseTypeResponse,
+  CustomerCaseTypeSubmission,
   CustomerCreateResponse,
   CustomerCreateSubmission,
   CustomerImportResponse,
@@ -146,6 +144,20 @@ export async function requestCustomerStatusUpdate(
   return result.body;
 }
 
+export async function requestCustomerCaseTypeUpdate(
+  customerId: string,
+  submission: CustomerCaseTypeSubmission,
+): Promise<CustomerCaseTypeResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/case-type`, {
+    method: 'PATCH',
+    body: submission,
+  });
+  if (!isCustomerCaseTypeResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
 export async function requestCustomerRetain(
   customerId: string,
   submission: CustomerRetainSubmission,
@@ -173,31 +185,6 @@ export async function requestRefund(
     body: submission,
   });
   if (!isRefundResponse(result.body)) {
-    throw new ApiError(result.status, result.body);
-  }
-  return result.body;
-}
-
-export async function requestCaseProgress(
-  customerId: string,
-  signal?: AbortSignal,
-): Promise<CaseProgress> {
-  const result = await apiClient(`${customerPath(customerId)}/case-progress`, { signal });
-  if (!result.ok || !isCaseProgress(result.body)) {
-    throw new ApiError(result.status, result.body);
-  }
-  return result.body;
-}
-
-export async function requestCaseProgressUpdate(
-  customerId: string,
-  submission: CaseProgressUpdateSubmission,
-): Promise<CaseProgressUpdateResponse> {
-  const result = await apiClient(`${customerPath(customerId)}/case-progress`, {
-    method: 'PATCH',
-    body: submission,
-  });
-  if (!isCaseProgressUpdateResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;
