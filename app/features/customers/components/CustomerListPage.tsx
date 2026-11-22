@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 
+import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
 import { CustomerAssigneeBulkDialog } from '~/features/customers/components/CustomerAssigneeBulkDialog';
-import { CustomerCreateDrawer } from '~/features/customers/components/CustomerCreateDrawer';
 import { CustomerDataTable } from '~/features/customers/components/CustomerDataTable';
+import { CustomerDeleteDialog } from '~/features/customers/components/CustomerDeleteDialog';
+import { CustomerDetailDialog } from '~/features/customers/components/CustomerDetailDialog';
 import { CustomerImportDialog } from '~/features/customers/components/CustomerImportDialog';
+import { CustomerListEditDialog } from '~/features/customers/components/CustomerListEditDialog';
+import { CustomerProfileDialog } from '~/features/customers/components/CustomerProfileDialog';
+import { CustomerReminderSection } from '~/features/customers/components/CustomerReminderSection';
 import { CustomerSearchForm } from '~/features/customers/components/CustomerSearchForm';
 import { CustomerStatusFilter } from '~/features/customers/components/CustomerStatusFilter';
 import { useCustomerList } from '~/features/customers/hooks/useCustomerList';
@@ -47,10 +52,16 @@ function readPage(value: string | null): number {
 export function CustomerListPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [creating, setCreating] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState('');
+  const [deletingCustomer, setDeletingCustomer] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const field = parseCustomerSearchField(searchParams.get('field')) ?? 'name';
   const keyword = searchParams.get('q') ?? '';
   const status = parseConsultationStatus(searchParams.get('status'));
   const page = readPage(searchParams.get('page'));
+  const customerId = searchParams.get('customer') ?? '';
   const customers = useCustomerList({ field, keyword, status, page });
 
   function replaceParams(update: (params: URLSearchParams) => void): void {
@@ -88,6 +99,18 @@ export function CustomerListPage(): JSX.Element {
     });
   }
 
+  function openCustomer(nextCustomerId: string): void {
+    const next = new URLSearchParams(searchParams);
+    next.set('customer', nextCustomerId);
+    setSearchParams(next);
+  }
+
+  function closeCustomer(): void {
+    const next = new URLSearchParams(searchParams);
+    next.delete('customer');
+    setSearchParams(next, { replace: true });
+  }
+
   function changePage(nextPage: number): void {
     replaceParams((params) => {
       if (nextPage <= 1) {
@@ -122,12 +145,16 @@ export function CustomerListPage(): JSX.Element {
         rowSelection={rowSelection}
         onPageChange={changePage}
         onRowSelectionChange={setRowSelection}
+        onOpenCustomer={openCustomer}
+        onEditCustomer={setEditingCustomerId}
+        onDeleteCustomer={setDeletingCustomer}
       />
     );
   }
 
   return (
     <div className="grid gap-5">
+      <CustomerReminderSection onOpenCustomer={openCustomer} />
       <section className={`${pageSurface} grid gap-5 p-5`}>
         <h2 className="text-sm font-medium text-foreground">검색 조건</h2>
         <CustomerSearchForm
@@ -149,11 +176,54 @@ export function CustomerListPage(): JSX.Element {
           />
           <div className="flex items-center gap-2">
             <CustomerImportDialog />
-            <CustomerCreateDrawer />
+            <Button
+              type="button"
+              size="lg"
+              onClick={() => {
+                setCreating(true);
+              }}
+            >
+              상담등록
+            </Button>
+            <CustomerProfileDialog
+              mode="create"
+              open={creating}
+              customer={null}
+              onClose={() => {
+                setCreating(false);
+              }}
+            />
           </div>
         </div>
         {listBody}
       </section>
+      <CustomerDetailDialog customerId={customerId} onClose={closeCustomer} />
+      <CustomerListEditDialog
+        customerId={editingCustomerId}
+        onClose={() => {
+          setEditingCustomerId('');
+        }}
+      />
+      <CustomerDeleteDialog
+        customer={deletingCustomer}
+        onClose={() => {
+          setDeletingCustomer(null);
+        }}
+        onDeleted={(deletedCustomerId) => {
+          setRowSelection((current) =>
+            Object.fromEntries(Object.entries(current).filter(([id]) => id !== deletedCustomerId)),
+          );
+          if (deletedCustomerId === customerId) {
+            closeCustomer();
+          }
+          if (editingCustomerId === deletedCustomerId) {
+            setEditingCustomerId('');
+          }
+          if (customers.data?.customers.length === 1 && page > 1) {
+            changePage(page - 1);
+          }
+        }}
+      />
     </div>
   );
 }

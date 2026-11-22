@@ -1,6 +1,8 @@
 import { useSearchParams } from 'react-router';
 
 import { Skeleton } from '~/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
+import { ReceivableCalendarPanel } from '~/features/receivables/components/ReceivableCalendarPanel';
 import { ReceivableDataTable } from '~/features/receivables/components/ReceivableDataTable';
 import { ReceivableSearchForm } from '~/features/receivables/components/ReceivableSearchForm';
 import { useReceivableList } from '~/features/receivables/hooks/useReceivableList';
@@ -30,7 +32,7 @@ function readPage(value: string | null): number {
   return page;
 }
 
-export function ReceivableListPage(): JSX.Element {
+function ReceivableStatusPanel(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const field = parseReceivableSearchField(searchParams.get('field')) ?? 'name';
   const keyword = searchParams.get('q') ?? '';
@@ -110,5 +112,42 @@ export function ReceivableListPage(): JSX.Element {
         {listBody}
       </section>
     </div>
+  );
+}
+
+function readView(value: string | null): 'calendar' | 'customers' {
+  return value === 'customers' ? 'customers' : 'calendar';
+}
+
+export function ReceivableListPage(): JSX.Element {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = readView(searchParams.get('view'));
+
+  function changeView(nextView: string): void {
+    if (nextView !== 'calendar' && nextView !== 'customers') {
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    if (nextView === 'calendar') {
+      next.delete('view');
+    } else {
+      next.set('view', 'customers');
+    }
+    setSearchParams(next, { replace: true });
+  }
+
+  return (
+    <Tabs value={view} onValueChange={changeView}>
+      <TabsList>
+        <TabsTrigger value="calendar">캘린더</TabsTrigger>
+        <TabsTrigger value="customers">고객별 현황</TabsTrigger>
+      </TabsList>
+      <TabsContent value="calendar">
+        <ReceivableCalendarPanel />
+      </TabsContent>
+      <TabsContent value="customers">
+        <ReceivableStatusPanel />
+      </TabsContent>
+    </Tabs>
   );
 }

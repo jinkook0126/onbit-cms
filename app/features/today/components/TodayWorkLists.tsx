@@ -10,7 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import { customerConsultationTab } from '~/features/customers/type';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -25,24 +24,22 @@ const labelCell = 'h-auto px-5 py-3 text-left text-sm font-medium text-foregroun
 const nameCell = 'px-5 py-3.5 text-left align-top';
 const textCell = 'px-5 py-3.5 text-left align-top whitespace-normal break-words';
 
-function customerPath(customerId: string, tab: string): string {
-  return `/customers/${customerId}?tab=${tab}`;
+function customerPath(customerId: string): string {
+  return `/customers?customer=${customerId}`;
 }
 
 export function CustomerLink({
   customerId,
-  tab,
   name,
   className,
 }: {
   customerId: string;
-  tab: string;
   name: string;
   className?: string;
 }): JSX.Element {
   return (
     <Link
-      to={customerPath(customerId, tab)}
+      to={customerPath(customerId)}
       className={cn('rounded-sm font-medium text-foreground', focusRing, className)}
     >
       {name}
@@ -79,13 +76,12 @@ function AssigneeName({ name }: { name: string | null }): JSX.Element {
 function openCustomer(
   navigate: ReturnType<typeof useNavigate>,
   customerId: string,
-  tab: string,
   event: MouseEvent<HTMLTableRowElement>,
 ): void {
   if (event.target instanceof Element && event.target.closest('a, button')) {
     return;
   }
-  void navigate(customerPath(customerId, tab));
+  void navigate(customerPath(customerId));
 }
 
 function TodayContactCard({ contacts }: { contacts: TodayContact[] }): JSX.Element {
@@ -117,13 +113,12 @@ function TodayContactCard({ contacts }: { contacts: TodayContact[] }): JSX.Eleme
               key={contact.customerId}
               className="cursor-pointer border-border/70"
               onClick={(event) => {
-                openCustomer(navigate, contact.customerId, customerConsultationTab, event);
+                openCustomer(navigate, contact.customerId, event);
               }}
             >
               <TableCell className={nameCell}>
                 <CustomerLink
                   customerId={contact.customerId}
-                  tab={customerConsultationTab}
                   name={contact.customerName}
                   className="block truncate"
                 />

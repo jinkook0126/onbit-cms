@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import { customerInstallmentTab, installmentScheduleLabel } from '~/features/customers/type';
+import { installmentScheduleLabel } from '~/features/customers/type';
 import { CustomerLink, TodayEmptyState } from '~/features/today/components/TodayWorkLists';
 import { formatWon } from '~/lib/money';
 import { cn } from '~/lib/utils';
@@ -27,7 +27,7 @@ const valueCell = 'truncate px-5 py-3.5 text-left align-middle';
 const amountCell = 'px-5 py-3.5 text-right align-middle whitespace-nowrap tabular-nums';
 
 function installmentPath(customerId: string): string {
-  return `/customers/${customerId}?tab=${customerInstallmentTab}`;
+  return `/customers?customer=${customerId}`;
 }
 
 export function TodayOverdueCard({ installments }: TodayOverdueCardProps): JSX.Element {
@@ -78,7 +78,6 @@ export function TodayOverdueCard({ installments }: TodayOverdueCardProps): JSX.E
               <TableCell className="px-5 py-3.5 text-left align-middle">
                 <CustomerLink
                   customerId={installment.customerId}
-                  tab={customerInstallmentTab}
                   name={installment.customerName}
                   className="block truncate"
                 />

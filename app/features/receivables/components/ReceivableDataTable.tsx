@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import { customerInstallmentTab, installmentScheduleLabel } from '~/features/customers/type';
+import { installmentScheduleLabel } from '~/features/customers/type';
 import { RECEIVABLE_PAGE_SIZE, receivableStatusLabels } from '~/features/receivables/type';
 import { formatWon } from '~/lib/money';
 import { focusRing, pageSurface } from '~/lib/styles';
@@ -47,7 +47,7 @@ const statusVariants: Record<ReceivableStatus, 'default' | 'destructive' | 'seco
 };
 
 function customerInstallmentPath(customerId: string): string {
-  return `/customers/${customerId}?tab=${customerInstallmentTab}`;
+  return `/customers?customer=${customerId}`;
 }
 
 const receivableColumns = columnHelper.columns([

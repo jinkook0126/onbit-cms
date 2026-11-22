@@ -2,7 +2,7 @@ import { createCustomer, readCustomers } from '~/features/customers/api/customer
 import {
   MAX_CUSTOMER_KEYWORD_LENGTH,
   isConsultationStatusParam,
-  isCustomerCreateSubmission,
+  isCustomerProfileSubmission,
   parseConsultationStatus,
   parseCustomerSearchField,
 } from '~/features/customers/type';
@@ -101,18 +101,11 @@ export async function action({ request }: Route.ActionArgs): Promise<Response> {
   } catch {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 400);
   }
-  if (!isCustomerCreateSubmission(payload)) {
+  if (!isCustomerProfileSubmission(payload)) {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 400);
   }
 
-  const { result, headers } = await createCustomer(
-    request,
-    payload.name,
-    payload.phone,
-    payload.source,
-    payload.assigneeId,
-    payload.nextContactOn,
-  );
+  const { result, headers } = await createCustomer(request, payload);
   switch (result.status) {
     case 'ok':
       return jsonResponse({ id: result.id }, 200, headers);
@@ -128,6 +121,8 @@ export async function action({ request }: Route.ActionArgs): Promise<Response> {
       return jsonResponse({ formError: UNAUTHENTICATED_MESSAGE }, 401, headers);
     case 'forbidden':
       return jsonResponse({ formError: CREATE_FORBIDDEN_MESSAGE }, 403, headers);
+    case 'not-found':
+      return jsonResponse({ formError: CREATE_FAILED_MESSAGE }, 404, headers);
     case 'failed':
       return jsonResponse({ formError: CREATE_FAILED_MESSAGE }, 500, headers);
     default: {

@@ -1,7 +1,10 @@
 import { syncLatestNextContact } from '~/features/customers/api/customerConsultations.server';
 import { formatContactDate, parseContactDate } from '~/features/customers/api/customerDates.server';
 import { readTakenCustomerKeys } from '~/features/customers/api/customerIdentity.server';
-import { buildInstallmentDrafts } from '~/features/customers/api/customerInstallments.server';
+import {
+  buildInstallmentDrafts,
+  readOrCreateInstallments,
+} from '~/features/customers/api/customerInstallments.server';
 import {
   customerVisibilityWhere,
   readAccessibleCustomer,
@@ -31,8 +34,9 @@ import type {
   CaseType,
   ConsultationStatus,
   CustomerAssigneeOption,
-  CustomerCreateFieldErrors,
   CustomerDetail,
+  CustomerProfileFieldErrors,
+  CustomerProfileSubmission,
   CustomerListItem,
   CustomerRetainFieldErrors,
   CustomerRetainSubmission,
@@ -99,9 +103,13 @@ function toCustomerListItem(customer: {
   phone: string;
   source: string;
   status: string;
+  caseType: string | null;
+  createdAt: Date;
   nextContactOn: Date | null;
+  firstProcessedOn: Date | null;
   assignee: { name: string } | null;
-  consultations: { nextContactOn: Date | null }[];
+  customerCase: { caseType: string; contractedOn: Date } | null;
+  consultations: { content: string; nextContactOn: Date | null }[];
 }): CustomerListItem | null {
   if (!isInflowSource(customer.source) || !isConsultationStatus(customer.status)) {
     return null;
@@ -110,6 +118,9 @@ function toCustomerListItem(customer: {
   const nextContactOn = latestConsultation
     ? latestConsultation.nextContactOn
     : customer.nextContactOn;
+  const caseType = isCaseType(customer.customerCase?.caseType)
+    ? customer.customerCase.caseType
+    : customer.caseType;
   return {
     id: customer.id,
     name: customer.name,
@@ -117,7 +128,16 @@ function toCustomerListItem(customer: {
     source: customer.source,
     status: customer.status,
     assigneeName: customer.assignee?.name ?? null,
+    caseType: isCaseType(caseType) ? caseType : null,
+    registeredOn: seoulCalendarDay(customer.createdAt),
     nextContactOn: nextContactOn ? formatContactDate(nextContactOn) : null,
+    firstProcessedOn: customer.firstProcessedOn
+      ? formatContactDate(customer.firstProcessedOn)
+      : null,
+    contractedOn: customer.customerCase
+      ? formatContactDate(customer.customerCase.contractedOn)
+      : null,
+    latestConsultation: latestConsultation ? latestConsultation.content : null,
   };
 }
 
@@ -141,12 +161,16 @@ async function readScopedCustomers(
         phone: true,
         source: true,
         status: true,
+        caseType: true,
+        createdAt: true,
         nextContactOn: true,
+        firstProcessedOn: true,
         assignee: { select: { name: true } },
+        customerCase: { select: { caseType: true, contractedOn: true } },
         consultations: {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 1,
-          select: { nextContactOn: true },
+          select: { content: true, nextContactOn: true },
         },
       },
       orderBy: [{ createdAt: 'desc' }, { name: 'asc' }],
@@ -205,11 +229,12 @@ export type CustomerAssigneeResult =
   | { status: 'forbidden' }
   | { status: 'failed' };
 
-export type CustomerCreateResult =
+export type CustomerProfileResult =
   | { status: 'ok'; id: string }
   | { status: 'anonymous' }
   | { status: 'forbidden' }
-  | { status: 'invalid'; fieldErrors: CustomerCreateFieldErrors }
+  | { status: 'not-found' }
+  | { status: 'invalid'; fieldErrors: CustomerProfileFieldErrors }
   | { status: 'duplicate' }
   | { status: 'failed' };
 
@@ -220,7 +245,15 @@ const PHONE_INVALID_MESSAGE = `연락처는 숫자 ${MIN_CUSTOMER_PHONE_LENGTH}�
 const SOURCE_REQUIRED_MESSAGE = '유입처를 선택하세요.';
 const ASSIGNEE_REQUIRED_MESSAGE = '담당을 선택하세요.';
 const ASSIGNEE_INVALID_MESSAGE = '담당을 다시 선택하세요.';
-const CONTACT_DATE_INVALID_MESSAGE = '다음 상담일을 다시 선택하세요.';
+const FIRST_PROCESSED_INVALID_MESSAGE = 'DB 최초 처리일을 다시 선택하세요.';
+const PROFILE_STATUS_INVALID_MESSAGE = '상담 상태를 선택하세요.';
+const PROFILE_STATUS_LOCKED_MESSAGE = '수임 상태는 바꿀 수 없습니다.';
+const PROFILE_CASE_TYPE_REQUIRED_MESSAGE = '사건 유형을 선택하세요.';
+const PROFILE_CONTRACTED_ON_REQUIRED_MESSAGE = '수임날짜를 선택하세요.';
+const PROFILE_CONTRACTED_ON_INVALID_MESSAGE = '수임날짜를 다시 선택하세요.';
+const PROFILE_RETAINER_FEE_REQUIRED_MESSAGE = '총 수임료를 입력하세요.';
+const PROFILE_RETAINER_FEE_INVALID_MESSAGE =
+  '총 수임료는 0 이상 20억 원 이하의 정수로 입력하세요.';
 
 async function assigneeWhere(
   actor: Extract<CustomerActor, { status: 'ok' }>,
@@ -356,110 +389,222 @@ export async function assignCustomerAssignees(
   }
 }
 
-function validateCustomer(
-  name: string,
-  phone: string,
-  source: string,
-  assigneeId: string,
-  nextContactOn: string | null,
-): CustomerCreateFieldErrors {
-  const fieldErrors: CustomerCreateFieldErrors = {};
-  const trimmedName = name.trim();
-  const trimmedPhone = phone.trim();
+type ProfileDraft =
+  | { ok: false; fieldErrors: CustomerProfileFieldErrors }
+  | {
+      ok: true;
+      name: string;
+      phone: string;
+      source: InflowSource;
+      assigneeId: string;
+      status: ConsultationStatus;
+      caseType: CaseType | null;
+      firstProcessedOn: Date | null;
+      contractedOn: Date | null;
+      retainerFee: number | null;
+    };
 
-  if (trimmedName.length < 1) {
+function readProfileDraft(submission: CustomerProfileSubmission, lockRetained: boolean): ProfileDraft {
+  const fieldErrors: CustomerProfileFieldErrors = {};
+  const name = submission.name.trim();
+  const phone = submission.phone.trim();
+
+  if (name.length < 1) {
     fieldErrors.name = NAME_REQUIRED_MESSAGE;
-  } else if (trimmedName.length > MAX_CUSTOMER_NAME_LENGTH) {
+  } else if (name.length > MAX_CUSTOMER_NAME_LENGTH) {
     fieldErrors.name = NAME_TOO_LONG_MESSAGE;
   }
 
-  if (trimmedPhone.length < 1) {
+  if (phone.length < 1) {
     fieldErrors.phone = PHONE_REQUIRED_MESSAGE;
   } else if (
-    !/^\d+$/.test(trimmedPhone) ||
-    trimmedPhone.length < MIN_CUSTOMER_PHONE_LENGTH ||
-    trimmedPhone.length > MAX_CUSTOMER_PHONE_LENGTH
+    !/^\d+$/.test(phone) ||
+    phone.length < MIN_CUSTOMER_PHONE_LENGTH ||
+    phone.length > MAX_CUSTOMER_PHONE_LENGTH
   ) {
     fieldErrors.phone = PHONE_INVALID_MESSAGE;
   }
 
-  if (!isInflowSource(source)) {
+  if (!isInflowSource(submission.source)) {
     fieldErrors.source = SOURCE_REQUIRED_MESSAGE;
   }
-
-  if (assigneeId.trim().length < 1) {
+  if (submission.assigneeId.trim().length < 1) {
     fieldErrors.assigneeId = ASSIGNEE_REQUIRED_MESSAGE;
-  } else if (!isUuid(assigneeId)) {
+  } else if (!isUuid(submission.assigneeId)) {
     fieldErrors.assigneeId = ASSIGNEE_INVALID_MESSAGE;
   }
-
-  if (nextContactOn !== null && parseContactDate(nextContactOn) === null) {
-    fieldErrors.nextContactOn = CONTACT_DATE_INVALID_MESSAGE;
+  if (!isConsultationStatus(submission.status)) {
+    fieldErrors.status = PROFILE_STATUS_INVALID_MESSAGE;
+  } else if (lockRetained && submission.status !== 'RETAINED') {
+    fieldErrors.status = PROFILE_STATUS_LOCKED_MESSAGE;
+  }
+  if (submission.firstProcessedOn !== null && parseContactDate(submission.firstProcessedOn) === null) {
+    fieldErrors.firstProcessedOn = FIRST_PROCESSED_INVALID_MESSAGE;
   }
 
-  return fieldErrors;
+  const retained = submission.status === 'RETAINED';
+  if (retained) {
+    if (!isCaseType(submission.caseType)) {
+      fieldErrors.caseType = PROFILE_CASE_TYPE_REQUIRED_MESSAGE;
+    }
+    if (submission.contractedOn === null || submission.contractedOn.trim().length < 1) {
+      fieldErrors.contractedOn = PROFILE_CONTRACTED_ON_REQUIRED_MESSAGE;
+    } else if (parseContactDate(submission.contractedOn) === null) {
+      fieldErrors.contractedOn = PROFILE_CONTRACTED_ON_INVALID_MESSAGE;
+    }
+    const feeError = moneyFieldError(
+      submission.retainerFee ?? '',
+      PROFILE_RETAINER_FEE_REQUIRED_MESSAGE,
+      PROFILE_RETAINER_FEE_INVALID_MESSAGE,
+    );
+    if (feeError) {
+      fieldErrors.retainerFee = feeError;
+    }
+  } else if (submission.caseType !== null && !isCaseType(submission.caseType)) {
+    fieldErrors.caseType = PROFILE_CASE_TYPE_REQUIRED_MESSAGE;
+  }
+
+  if (
+    Object.keys(fieldErrors).length > 0 ||
+    !isInflowSource(submission.source) ||
+    !isConsultationStatus(submission.status)
+  ) {
+    return { ok: false, fieldErrors };
+  }
+
+  const firstProcessedOn =
+    submission.firstProcessedOn === null ? null : parseContactDate(submission.firstProcessedOn);
+  const caseType = isCaseType(submission.caseType) ? submission.caseType : null;
+  if (!retained) {
+    return {
+      ok: true,
+      name,
+      phone,
+      source: submission.source,
+      assigneeId: submission.assigneeId,
+      status: submission.status,
+      caseType,
+      firstProcessedOn,
+      contractedOn: null,
+      retainerFee: null,
+    };
+  }
+
+  const contractedOn = parseContactDate(submission.contractedOn ?? '');
+  const retainerFee = Number(submission.retainerFee);
+  if (contractedOn === null || caseType === null || !Number.isSafeInteger(retainerFee)) {
+    return { ok: false, fieldErrors };
+  }
+  return {
+    ok: true,
+    name,
+    phone,
+    source: submission.source,
+    assigneeId: submission.assigneeId,
+    status: 'RETAINED',
+    caseType,
+    firstProcessedOn,
+    contractedOn,
+    retainerFee,
+  };
+}
+
+async function assertAssignee(
+  actor: Extract<CustomerActor, { status: 'ok' }>,
+  assigneeId: string,
+): Promise<boolean> {
+  const assignees = await readAssigneeOptions(actor);
+  return assignees.some((assignee) => assignee.id === assigneeId);
+}
+
+async function createRetainedCase(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  actorId: string,
+  input: { contractedOn: Date; caseType: CaseType; retainerFee: number },
+): Promise<void> {
+  const retainInput = {
+    contractedOn: input.contractedOn,
+    retainerFee: input.retainerFee,
+    deposit: 0,
+    installmentCount: 1,
+    firstPaymentOn: input.contractedOn,
+  };
+  const customerCase = await tx.customerCase.create({
+    data: {
+      customerId,
+      caseType: input.caseType,
+      ...retainInput,
+    },
+    select: { id: true },
+  });
+  await tx.customerInstallment.createMany({
+    data: buildInstallmentDrafts(retainInput).map((draft) => ({
+      customerCaseId: customerCase.id,
+      ...draft,
+    })),
+  });
+  await tx.consultation.create({
+    data: {
+      customerId,
+      content: `수임전환 - ${caseTypeLabels[input.caseType]}`,
+      nextContactOn: null,
+      actorId,
+    },
+  });
+  await syncLatestNextContact(tx, customerId);
 }
 
 export async function createCustomer(
   request: Request,
-  name: string,
-  phone: string,
-  source: string,
-  assigneeId: string,
-  nextContactOn: string | null,
-): Promise<{ result: CustomerCreateResult; headers: Headers }> {
+  submission: CustomerProfileSubmission,
+): Promise<{ result: CustomerProfileResult; headers: Headers }> {
   const { actor, headers } = await resolveCustomerActor(request);
   if (actor.status !== 'ok') {
     return { result: actor, headers };
   }
 
-  const fieldErrors = validateCustomer(name, phone, source, assigneeId, nextContactOn);
-  if (Object.keys(fieldErrors).length > 0) {
-    return { result: { status: 'invalid', fieldErrors }, headers };
-  }
-  if (!isInflowSource(source)) {
-    return {
-      result: { status: 'invalid', fieldErrors: { source: SOURCE_REQUIRED_MESSAGE } },
-      headers,
-    };
-  }
-
-  const contactDate = nextContactOn === null ? null : parseContactDate(nextContactOn);
-  if (nextContactOn !== null && contactDate === null) {
-    return {
-      result: { status: 'invalid', fieldErrors: { nextContactOn: CONTACT_DATE_INVALID_MESSAGE } },
-      headers,
-    };
+  const draft = readProfileDraft(submission, false);
+  if (!draft.ok) {
+    return { result: { status: 'invalid', fieldErrors: draft.fieldErrors }, headers };
   }
 
   try {
-    const assignees = await readAssigneeOptions(actor);
-    if (!assignees.some((assignee) => assignee.id === assigneeId)) {
+    if (!(await assertAssignee(actor, draft.assigneeId))) {
       return {
         result: { status: 'invalid', fieldErrors: { assigneeId: ASSIGNEE_INVALID_MESSAGE } },
         headers,
       };
     }
-
-    const trimmedName = name.trim();
-    const trimmedPhone = phone.trim();
     const taken = await readTakenCustomerKeys(actor.companyId, [
-      { name: trimmedName, phone: trimmedPhone },
+      { name: draft.name, phone: draft.phone },
     ]);
     if (taken.size > 0) {
       return { result: { status: 'duplicate' }, headers };
     }
 
-    const customer = await prisma.customer.create({
-      data: {
-        companyId: actor.companyId,
-        name: trimmedName,
-        phone: trimmedPhone,
-        source,
-        assigneeId,
-        nextContactOn: contactDate,
-      },
-      select: { id: true },
+    const customer = await prisma.$transaction(async (tx) => {
+      const created = await tx.customer.create({
+        data: {
+          companyId: actor.companyId,
+          name: draft.name,
+          phone: draft.phone,
+          source: draft.source,
+          assigneeId: draft.assigneeId,
+          status: draft.status,
+          caseType: draft.caseType,
+          firstProcessedOn: draft.firstProcessedOn,
+        },
+        select: { id: true },
+      });
+      if (draft.status === 'RETAINED' && draft.caseType && draft.contractedOn && draft.retainerFee !== null) {
+        await createRetainedCase(tx, created.id, actor.userId, {
+          contractedOn: draft.contractedOn,
+          caseType: draft.caseType,
+          retainerFee: draft.retainerFee,
+        });
+      }
+      return created;
     });
     return { result: { status: 'ok', id: customer.id }, headers };
   } catch (error) {
@@ -467,6 +612,152 @@ export async function createCustomer(
       return { result: { status: 'duplicate' }, headers };
     }
     console.error('상담 고객을 등록하지 못했습니다.', errorCodeLabel(error));
+    return { result: { status: 'failed' }, headers };
+  }
+}
+
+export async function updateCustomerProfile(
+  request: Request,
+  customerId: string,
+  submission: CustomerProfileSubmission,
+): Promise<{ result: CustomerProfileResult; headers: Headers }> {
+  const { actor, headers } = await resolveCustomerActor(request);
+  if (actor.status !== 'ok') {
+    return { result: actor, headers };
+  }
+
+  try {
+    const customer = await readAccessibleCustomer(actor, customerId);
+    if (!customer || !isConsultationStatus(customer.status)) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    const draft = readProfileDraft(submission, customer.status === 'RETAINED');
+    if (!draft.ok) {
+      return { result: { status: 'invalid', fieldErrors: draft.fieldErrors }, headers };
+    }
+    if (!(await assertAssignee(actor, draft.assigneeId))) {
+      return {
+        result: { status: 'invalid', fieldErrors: { assigneeId: ASSIGNEE_INVALID_MESSAGE } },
+        headers,
+      };
+    }
+    const duplicate = await prisma.customer.findFirst({
+      where: {
+        companyId: actor.companyId,
+        name: draft.name,
+        phone: draft.phone,
+        NOT: { id: customer.id },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return { result: { status: 'duplicate' }, headers };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const existingCase = await tx.customerCase.findUnique({
+        where: { customerId: customer.id },
+        select: { caseType: true },
+      });
+      await tx.customer.update({
+        where: { id: customer.id },
+        data: {
+          name: draft.name,
+          phone: draft.phone,
+          source: draft.source,
+          assigneeId: draft.assigneeId,
+          status: draft.status,
+          caseType: draft.caseType,
+          firstProcessedOn: draft.firstProcessedOn,
+        },
+      });
+      if (customer.status === 'RETAINED') {
+        if (!existingCase || !draft.caseType || !draft.contractedOn || draft.retainerFee === null) {
+          return;
+        }
+        await tx.customerCase.update({
+          where: { customerId: customer.id },
+          data: {
+            caseType: draft.caseType,
+            contractedOn: draft.contractedOn,
+            retainerFee: draft.retainerFee,
+          },
+        });
+        if (isCaseType(existingCase.caseType) && existingCase.caseType !== draft.caseType) {
+          await tx.consultation.create({
+            data: {
+              customerId: customer.id,
+              content: `사건 유형 변경 - ${caseTypeLabels[existingCase.caseType]} -> ${caseTypeLabels[draft.caseType]}`,
+              nextContactOn: null,
+              actorId: actor.userId,
+            },
+          });
+          await syncLatestNextContact(tx, customer.id);
+        }
+        return;
+      }
+      if (draft.status === 'RETAINED' && draft.caseType && draft.contractedOn && draft.retainerFee !== null) {
+        await createRetainedCase(tx, customer.id, actor.userId, {
+          contractedOn: draft.contractedOn,
+          caseType: draft.caseType,
+          retainerFee: draft.retainerFee,
+        });
+      }
+    });
+    return { result: { status: 'ok', id: customer.id }, headers };
+  } catch (error) {
+    if (isUniqueConflict(error)) {
+      return { result: { status: 'duplicate' }, headers };
+    }
+    if (isMissingRecord(error)) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    console.error('상담 고객을 수정하지 못했습니다.', errorCodeLabel(error));
+    return { result: { status: 'failed' }, headers };
+  }
+}
+
+export type CustomerDeleteResult =
+  | { status: 'ok' }
+  | { status: 'anonymous' }
+  | { status: 'forbidden' }
+  | { status: 'not-found' }
+  | { status: 'failed' };
+
+export async function deleteCustomer(
+  request: Request,
+  customerId: string,
+): Promise<{ result: CustomerDeleteResult; headers: Headers }> {
+  const { actor, headers } = await resolveCustomerActor(request);
+  if (actor.status !== 'ok') {
+    return { result: actor, headers };
+  }
+
+  try {
+    const customer = await readAccessibleCustomer(actor, customerId);
+    if (!customer) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.installmentRefund.deleteMany({
+        where: { payment: { installment: { customerCase: { customerId: customer.id } } } },
+      });
+      await tx.installmentPayment.deleteMany({
+        where: { installment: { customerCase: { customerId: customer.id } } },
+      });
+      await tx.customerInstallment.deleteMany({
+        where: { customerCase: { customerId: customer.id } },
+      });
+      await tx.customerCase.deleteMany({ where: { customerId: customer.id } });
+      await tx.consultation.deleteMany({ where: { customerId: customer.id } });
+      await tx.customer.delete({ where: { id: customer.id } });
+    });
+    return { result: { status: 'ok' }, headers };
+  } catch (error) {
+    if (isMissingRecord(error)) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    console.error('상담 고객을 삭제하지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };
   }
 }
@@ -487,7 +778,22 @@ export type CustomerStatusResult =
   | { status: 'locked' }
   | { status: 'failed' };
 
-function toCustomerDetail(customer: AccessibleCustomer): CustomerDetail | null {
+function seoulCalendarDay(value: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(value);
+}
+
+function toCustomerDetail(
+  customer: AccessibleCustomer,
+  source: InflowSource,
+  registeredOn: string,
+  assigneeId: string | null,
+  firstProcessedOn: string | null,
+): Omit<CustomerDetail, 'caseType' | 'contractedOn' | 'retainerFee' | 'remainingRetainer'> | null {
   if (!isConsultationStatus(customer.status)) {
     return null;
   }
@@ -495,9 +801,12 @@ function toCustomerDetail(customer: AccessibleCustomer): CustomerDetail | null {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
+    source,
+    assigneeId,
     assigneeName: customer.assignee?.name ?? null,
     status: customer.status,
-    caseType: null,
+    registeredOn,
+    firstProcessedOn,
   };
 }
 
@@ -515,18 +824,67 @@ export async function readCustomer(
     if (!customer) {
       return { result: { status: 'not-found' }, headers };
     }
-    const detail = toCustomerDetail(customer);
+    const profile = await prisma.customer.findUnique({
+      where: { id: customer.id },
+      select: {
+        source: true,
+        createdAt: true,
+        assigneeId: true,
+        firstProcessedOn: true,
+        caseType: true,
+        customerCase: {
+          select: { caseType: true, contractedOn: true, retainerFee: true },
+        },
+      },
+    });
+    if (!profile || !isInflowSource(profile.source)) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    const detail = toCustomerDetail(
+      customer,
+      profile.source,
+      seoulCalendarDay(profile.createdAt),
+      profile.assigneeId,
+      profile.firstProcessedOn ? formatContactDate(profile.firstProcessedOn) : null,
+    );
     if (!detail) {
       return { result: { status: 'not-found' }, headers };
     }
-    const customerCase = await prisma.customerCase.findUnique({
-      where: { customerId: customer.id },
-      select: { caseType: true },
-    });
-    if (customerCase && isCaseType(customerCase.caseType)) {
-      detail.caseType = customerCase.caseType;
+    const storedCaseType = isCaseType(profile.caseType) ? profile.caseType : null;
+    const customerCase = profile.customerCase;
+    if (!customerCase || !isCaseType(customerCase.caseType)) {
+      return {
+        result: {
+          status: 'ok',
+          customer: {
+            ...detail,
+            caseType: storedCaseType,
+            contractedOn: null,
+            retainerFee: null,
+            remainingRetainer: null,
+          },
+        },
+        headers,
+      };
     }
-    return { result: { status: 'ok', customer: detail }, headers };
+    const installments = await readOrCreateInstallments(customer.id);
+    if (installments === null) {
+      return { result: { status: 'failed' }, headers };
+    }
+    const netReceived = installments.reduce((sum, row) => sum + row.receivedAmount, 0);
+    return {
+      result: {
+        status: 'ok',
+        customer: {
+          ...detail,
+          caseType: customerCase.caseType,
+          contractedOn: formatContactDate(customerCase.contractedOn),
+          retainerFee: customerCase.retainerFee,
+          remainingRetainer: Math.max(customerCase.retainerFee - netReceived, 0),
+        },
+      },
+      headers,
+    };
   } catch (error) {
     console.error('상담 고객을 불러오지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };

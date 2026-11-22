@@ -4,7 +4,8 @@ import {
   isCustomerAssigneeBatchResponse,
   isCustomerAssigneeResponse,
   isCustomerCaseTypeResponse,
-  isCustomerCreateResponse,
+  isCustomerProfileResponse,
+  isCustomerReminderResponse,
   isCustomerDetail,
   isCustomerImportResponse,
   isCustomerListResponse,
@@ -28,12 +29,13 @@ import type {
   CustomerAssigneeResponse,
   CustomerCaseTypeResponse,
   CustomerCaseTypeSubmission,
-  CustomerCreateResponse,
-  CustomerCreateSubmission,
+  CustomerProfileResponse,
+  CustomerProfileSubmission,
   CustomerImportResponse,
   CustomerDetail,
   CustomerListParams,
   CustomerListResponse,
+  CustomerReminderResponse,
   CustomerRetainResponse,
   CustomerRetainSubmission,
   CustomerStatusResponse,
@@ -51,6 +53,7 @@ import type {
 
 const customersApiPath = '/api/customers';
 const customerAssigneesApiPath = '/api/customers/assignees';
+const customerRemindersApiPath = '/api/customers/reminders';
 const customerImportApiPath = '/api/customers/import';
 const customerImportTemplateApiPath = '/api/customers/import-template';
 const customerImportTemplateName = '상담고객_업로드_템플릿.xlsx';
@@ -82,6 +85,16 @@ export async function requestCustomerList(
 ): Promise<CustomerListResponse> {
   const result = await apiClient(customersPath(params), { signal });
   if (!result.ok || !isCustomerListResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCustomerReminders(
+  signal?: AbortSignal,
+): Promise<CustomerReminderResponse> {
+  const result = await apiClient(customerRemindersApiPath, { signal });
+  if (!result.ok || !isCustomerReminderResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;
@@ -120,6 +133,13 @@ export async function requestCustomerDetail(
     throw new ApiError(result.status, result.body);
   }
   return result.body;
+}
+
+export async function requestCustomerDelete(customerId: string): Promise<void> {
+  const result = await apiClient(customerPath(customerId), { method: 'DELETE' });
+  if (!result.ok) {
+    throw new ApiError(result.status, result.body);
+  }
 }
 
 export async function requestCustomerSummary(
@@ -343,10 +363,24 @@ export async function requestCustomerImport(
 }
 
 export async function requestCustomerCreate(
-  submission: CustomerCreateSubmission,
-): Promise<CustomerCreateResponse> {
+  submission: CustomerProfileSubmission,
+): Promise<CustomerProfileResponse> {
   const result = await apiClient(customersApiPath, { method: 'POST', body: submission });
-  if (!isCustomerCreateResponse(result.body)) {
+  if (!isCustomerProfileResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCustomerProfileUpdate(
+  customerId: string,
+  submission: CustomerProfileSubmission,
+): Promise<CustomerProfileResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/profile`, {
+    method: 'PATCH',
+    body: submission,
+  });
+  if (!isCustomerProfileResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;

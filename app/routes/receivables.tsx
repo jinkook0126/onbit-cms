@@ -8,7 +8,7 @@ import type { Route } from './+types/receivables';
 export const handle = shellMenuBreadcrumb;
 
 export function meta({ location }: Route.MetaArgs): Route.MetaDescriptors {
-  const label = currentShellNavItem(location.pathname)?.label ?? '분납/미수';
+  const label = currentShellNavItem(location.pathname)?.label ?? '분납관리';
   return [{ title: `${label} | 온빛 CMS` }];
 }
 

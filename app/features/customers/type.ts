@@ -82,9 +82,6 @@ export const inflowSourceLabels = {
   OTHER: '기타',
 } as const;
 
-export const customerInstallmentTab = 'installments';
-export const customerConsultationTab = 'consultations';
-
 export const customerSearchFieldLabels = {
   name: '이름',
   phone: '전화번호',
@@ -128,16 +125,39 @@ export type CustomerListItem = {
   source: InflowSource;
   status: ConsultationStatus;
   assigneeName: string | null;
+  caseType: CaseType | null;
+  registeredOn: string;
   nextContactOn: string | null;
+  firstProcessedOn: string | null;
+  contractedOn: string | null;
+  latestConsultation: string | null;
 };
 
 export type CustomerDetail = {
   id: string;
   name: string;
   phone: string;
+  source: InflowSource;
+  assigneeId: string | null;
   assigneeName: string | null;
   status: ConsultationStatus;
   caseType: CaseType | null;
+  registeredOn: string;
+  firstProcessedOn: string | null;
+  contractedOn: string | null;
+  retainerFee: number | null;
+  remainingRetainer: number | null;
+};
+
+export type CustomerReminder = {
+  id: string;
+  name: string;
+  nextContactOn: string;
+  latestConsultation: string | null;
+};
+
+export type CustomerReminderResponse = {
+  reminders: CustomerReminder[];
 };
 
 export type CustomerListResponse = {
@@ -174,25 +194,33 @@ export type CustomerAssigneeBatchResponse = {
   formError?: string;
 };
 
-export type CustomerCreateFieldErrors = {
+export type CustomerProfileFieldErrors = {
   name?: string;
   phone?: string;
   source?: string;
   assigneeId?: string;
-  nextContactOn?: string;
+  status?: string;
+  caseType?: string;
+  firstProcessedOn?: string;
+  contractedOn?: string;
+  retainerFee?: string;
 };
 
-export type CustomerCreateSubmission = {
+export type CustomerProfileSubmission = {
   name: string;
   phone: string;
   source: string;
   assigneeId: string;
-  nextContactOn: string | null;
+  status: string;
+  caseType: string | null;
+  firstProcessedOn: string | null;
+  contractedOn: string | null;
+  retainerFee: string | null;
 };
 
-export type CustomerCreateResponse = {
+export type CustomerProfileResponse = {
   id?: string;
-  fieldErrors?: CustomerCreateFieldErrors;
+  fieldErrors?: CustomerProfileFieldErrors;
   formError?: string;
 };
 
@@ -271,7 +299,12 @@ function isCustomerListItem(value: unknown): value is CustomerListItem {
     isInflowSource(value.source) &&
     isConsultationStatus(value.status) &&
     isNullableString(value.assigneeName) &&
-    isNullableString(value.nextContactOn)
+    (value.caseType === null || isCaseType(value.caseType)) &&
+    typeof value.registeredOn === 'string' &&
+    isNullableString(value.nextContactOn) &&
+    isNullableString(value.firstProcessedOn) &&
+    isNullableString(value.contractedOn) &&
+    isNullableString(value.latestConsultation)
   );
 }
 
@@ -283,9 +316,16 @@ export function isCustomerDetail(value: unknown): value is CustomerDetail {
     typeof value.id === 'string' &&
     typeof value.name === 'string' &&
     typeof value.phone === 'string' &&
+    isInflowSource(value.source) &&
+    isNullableString(value.assigneeId) &&
     isNullableString(value.assigneeName) &&
     isConsultationStatus(value.status) &&
-    (value.caseType === null || isCaseType(value.caseType))
+    (value.caseType === null || isCaseType(value.caseType)) &&
+    typeof value.registeredOn === 'string' &&
+    isNullableString(value.firstProcessedOn) &&
+    isNullableString(value.contractedOn) &&
+    (value.retainerFee === null || isWonAmount(value.retainerFee)) &&
+    (value.remainingRetainer === null || isWonAmount(value.remainingRetainer))
   );
 }
 
@@ -359,6 +399,25 @@ export function isCustomerStatusResponse(value: unknown): value is CustomerStatu
   return value.status === undefined || isConsultationStatus(value.status);
 }
 
+function isCustomerReminder(value: unknown): value is CustomerReminder {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.nextContactOn === 'string' &&
+    isNullableString(value.latestConsultation)
+  );
+}
+
+export function isCustomerReminderResponse(value: unknown): value is CustomerReminderResponse {
+  if (!isRecord(value) || !Array.isArray(value.reminders)) {
+    return false;
+  }
+  return value.reminders.every(isCustomerReminder);
+}
+
 export function isCustomerListResponse(value: unknown): value is CustomerListResponse {
   if (
     !isRecord(value) ||
@@ -372,7 +431,17 @@ export function isCustomerListResponse(value: unknown): value is CustomerListRes
   return value.customers.every(isCustomerListItem);
 }
 
-const customerCreateErrorKeys = ['name', 'phone', 'source', 'assigneeId', 'nextContactOn'] as const;
+const customerProfileErrorKeys = [
+  'name',
+  'phone',
+  'source',
+  'assigneeId',
+  'status',
+  'caseType',
+  'firstProcessedOn',
+  'contractedOn',
+  'retainerFee',
+] as const;
 
 function isCustomerAssigneeOption(value: unknown): value is CustomerAssigneeOption {
   if (!isRecord(value)) {
@@ -420,16 +489,16 @@ export function isCustomerAssigneeBatchResponse(
   return true;
 }
 
-function isCustomerCreateFieldErrors(value: unknown): value is CustomerCreateFieldErrors {
+function isCustomerProfileFieldErrors(value: unknown): value is CustomerProfileFieldErrors {
   if (!isRecord(value)) {
     return false;
   }
-  return customerCreateErrorKeys.every(
+  return customerProfileErrorKeys.every(
     (key) => value[key] === undefined || typeof value[key] === 'string',
   );
 }
 
-export function isCustomerCreateSubmission(value: unknown): value is CustomerCreateSubmission {
+export function isCustomerProfileSubmission(value: unknown): value is CustomerProfileSubmission {
   if (!isRecord(value)) {
     return false;
   }
@@ -438,7 +507,11 @@ export function isCustomerCreateSubmission(value: unknown): value is CustomerCre
     typeof value.phone === 'string' &&
     typeof value.source === 'string' &&
     typeof value.assigneeId === 'string' &&
-    (value.nextContactOn === null || typeof value.nextContactOn === 'string')
+    typeof value.status === 'string' &&
+    (value.caseType === null || typeof value.caseType === 'string') &&
+    (value.firstProcessedOn === null || typeof value.firstProcessedOn === 'string') &&
+    (value.contractedOn === null || typeof value.contractedOn === 'string') &&
+    (value.retainerFee === null || typeof value.retainerFee === 'string')
   );
 }
 
@@ -500,7 +573,7 @@ export function isConsultationCreateResponse(value: unknown): value is Consultat
   return true;
 }
 
-export function isCustomerCreateResponse(value: unknown): value is CustomerCreateResponse {
+export function isCustomerProfileResponse(value: unknown): value is CustomerProfileResponse {
   if (!isRecord(value)) {
     return false;
   }
@@ -510,7 +583,7 @@ export function isCustomerCreateResponse(value: unknown): value is CustomerCreat
   if (value.formError !== undefined && typeof value.formError !== 'string') {
     return false;
   }
-  if (value.fieldErrors !== undefined && !isCustomerCreateFieldErrors(value.fieldErrors)) {
+  if (value.fieldErrors !== undefined && !isCustomerProfileFieldErrors(value.fieldErrors)) {
     return false;
   }
   return true;

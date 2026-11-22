@@ -5,7 +5,6 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table';
-import { Link, useNavigate } from 'react-router';
 
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
@@ -20,9 +19,9 @@ import {
 } from '~/components/ui/table';
 import {
   CUSTOMER_PAGE_SIZE,
+  caseTypeLabels,
   consultationStatusBadgeVariants,
   consultationStatusLabels,
-  customerConsultationTab,
   formatCustomerPhone,
   inflowSourceLabels,
 } from '~/features/customers/type';
@@ -42,6 +41,9 @@ type CustomerDataTableProps = {
   rowSelection: RowSelectionState;
   onPageChange: (page: number) => void;
   onRowSelectionChange: (selection: RowSelectionState) => void;
+  onOpenCustomer: (customerId: string) => void;
+  onEditCustomer: (customerId: string) => void;
+  onDeleteCustomer: (customer: { id: string; name: string }) => void;
 };
 
 const features = tableFeatures({ rowPaginationFeature, rowSelectionFeature });
@@ -80,18 +82,32 @@ function customerColumnClassName(columnId: string): string | undefined {
   if (columnId === 'status') {
     return 'text-center';
   }
+  if (columnId === 'latestConsultation') {
+    return 'max-w-56';
+  }
+  if (columnId === 'actions') {
+    return 'w-36';
+  }
   return undefined;
+}
+
+function DateCell({ value }: { value: string | null }): JSX.Element | string {
+  if (!value) {
+    return <UnassignedBadge />;
+  }
+  return formatContactDate(value);
 }
 
 function stopRowNavigation(event: { stopPropagation: () => void }): void {
   event.stopPropagation();
 }
 
-function customerConsultationPath(customerId: string): string {
-  return `/customers/${customerId}?tab=${customerConsultationTab}`;
-}
-
-const customerColumns = columnHelper.columns([
+function createCustomerColumns(
+  onOpenCustomer: (customerId: string) => void,
+  onEditCustomer: (customerId: string) => void,
+  onDeleteCustomer: (customer: { id: string; name: string }) => void,
+) {
+  return columnHelper.columns([
   columnHelper.display({
     id: 'select',
     header: (context) => (
@@ -122,12 +138,16 @@ const customerColumns = columnHelper.columns([
   columnHelper.accessor('name', {
     header: '고객이름',
     cell: (context) => (
-      <Link
-        to={customerConsultationPath(context.row.original.id)}
+      <button
+        type="button"
         className={cn('rounded-sm text-foreground', focusRing)}
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenCustomer(context.row.original.id);
+        }}
       >
         {context.getValue()}
-      </Link>
+      </button>
     ),
   }),
   columnHelper.accessor('phone', {
@@ -159,17 +179,81 @@ const customerColumns = columnHelper.columns([
       );
     },
   }),
-  columnHelper.accessor('nextContactOn', {
-    header: '다음 연락',
+  columnHelper.accessor('firstProcessedOn', {
+    header: 'DB 최초 처리일',
+    cell: (context) => <DateCell value={context.getValue()} />,
+  }),
+  columnHelper.accessor('registeredOn', {
+    header: '등록날짜',
+    cell: (context) => <DateCell value={context.getValue()} />,
+  }),
+  columnHelper.accessor('contractedOn', {
+    header: '수임날짜',
+    cell: (context) => <DateCell value={context.getValue()} />,
+  }),
+  columnHelper.accessor('caseType', {
+    header: '사건유형',
     cell: (context) => {
-      const value = context.getValue();
-      if (!value) {
+      const caseType = context.getValue();
+      if (!caseType) {
         return <UnassignedBadge />;
       }
-      return formatContactDate(value);
+      return caseTypeLabels[caseType];
     },
   }),
-]);
+  columnHelper.accessor('nextContactOn', {
+    header: '다음 상담일',
+    cell: (context) => <DateCell value={context.getValue()} />,
+  }),
+  columnHelper.accessor('latestConsultation', {
+    header: '상담이력',
+    cell: (context) => {
+      const content = context.getValue();
+      if (!content) {
+        return <UnassignedBadge />;
+      }
+      return (
+        <span className="line-clamp-2 whitespace-normal" title={content}>
+          {content}
+        </span>
+      );
+    },
+  }),
+  columnHelper.display({
+    id: 'actions',
+    header: '관리',
+    cell: (context) => (
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            onEditCustomer(context.row.original.id);
+          }}
+        >
+          수정
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDeleteCustomer({
+              id: context.row.original.id,
+              name: context.row.original.name,
+            });
+          }}
+        >
+          삭제
+        </Button>
+      </div>
+    ),
+  }),
+  ]);
+}
 
 export function CustomerDataTable({
   customers,
@@ -180,20 +264,23 @@ export function CustomerDataTable({
   rowSelection,
   onPageChange,
   onRowSelectionChange,
+  onOpenCustomer,
+  onEditCustomer,
+  onDeleteCustomer,
 }: CustomerDataTableProps): JSX.Element {
-  const navigate = useNavigate();
   const pageCount = Math.max(1, Math.ceil(total / CUSTOMER_PAGE_SIZE));
+  const columns = createCustomerColumns(onOpenCustomer, onEditCustomer, onDeleteCustomer);
 
   function openCustomer(customerId: string, event: MouseEvent<HTMLTableRowElement>): void {
     if (event.target instanceof Element && event.target.closest('a, button, [role="checkbox"]')) {
       return;
     }
-    void navigate(customerConsultationPath(customerId));
+    onOpenCustomer(customerId);
   }
   const table = useTable(
     {
       features,
-      columns: customerColumns,
+      columns,
       data: customers.length === 0 ? emptyCustomers : customers,
       getRowId: (row) => row.id,
       rowCount: total,
@@ -254,7 +341,7 @@ export function CustomerDataTable({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={customerColumns.length}
+                  colSpan={columns.length}
                   className="h-64 text-center text-muted-foreground"
                 >
                   {emptyMessage}

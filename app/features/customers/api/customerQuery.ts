@@ -4,6 +4,7 @@ import type { CustomerDetail, CustomerListParams } from '~/features/customers/ty
 export const customerQueryKeys = {
   all: ['customers'] as const,
   lists: () => [...customerQueryKeys.all, 'list'] as const,
+  reminders: () => [...customerQueryKeys.lists(), 'reminders'] as const,
   list: (params: CustomerListParams) => [...customerQueryKeys.lists(), params] as const,
   details: () => [...customerQueryKeys.all, 'detail'] as const,
   detail: (customerId: string) => [...customerQueryKeys.details(), customerId] as const,

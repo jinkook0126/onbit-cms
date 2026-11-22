@@ -5,10 +5,8 @@ export default [
     index('routes/today.tsx', { id: 'today' }),
     route('customers', 'routes/customers.tsx', { id: 'customers' }, [
       index('routes/customers-index.tsx', { id: 'customers-index' }),
-      route(':customerId', 'routes/customer.tsx', { id: 'customer' }),
     ]),
     route('receivables', 'routes/receivables.tsx', { id: 'receivables' }),
-    route('settlements', 'routes/settlements.tsx', { id: 'settlements' }),
     route('settings', 'routes/settings.tsx', { id: 'settings' }, [
       index('routes/settings-index.tsx', { id: 'settings-index' }),
       route('companies', 'routes/settings-companies.tsx', { id: 'settings-companies' }, [
@@ -28,10 +26,10 @@ export default [
   route('api/logout', 'routes/api.logout.ts'),
   route('api/account', 'routes/api.account.ts'),
   route('api/receivables', 'routes/api.receivables.ts'),
-  route('api/settlements', 'routes/api.settlements.ts'),
   route('api/today', 'routes/api.today.ts'),
   route('api/customers', 'routes/api.customers.ts'),
   route('api/customers/assignees', 'routes/api.customer-assignees.ts'),
+  route('api/customers/reminders', 'routes/api.customer-reminders.ts'),
   route('api/customers/import-template', 'routes/api.customer-import-template.ts'),
   route('api/customers/import', 'routes/api.customer-import.ts'),
   route(
@@ -53,6 +51,7 @@ export default [
   route('api/customers/:customerId/retain', 'routes/api.customer-retain.ts'),
   route('api/customers/:customerId/summary', 'routes/api.customer-summary.ts'),
   route('api/customers/:customerId/case-type', 'routes/api.customer-case-type.ts'),
+  route('api/customers/:customerId/profile', 'routes/api.customer-profile.ts'),
   route('api/customers/:customerId', 'routes/api.customer.ts'),
   route('api/companies', 'routes/api.companies.ts'),
   route('api/companies/:companyId', 'routes/api.company.ts'),
