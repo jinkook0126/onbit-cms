@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { requestCustomerRetain } from '~/features/customers/api/customerApi';
 import { customerQueryKeys, replaceCustomerDetail } from '~/features/customers/api/customerQuery';
+import { isCaseType } from '~/features/customers/type';
 
 import type { ChangeEvent } from 'react';
 import type {
@@ -55,20 +56,20 @@ export function useRetainCustomer(customerId: string): RetainCustomerState {
   const mutation = useMutation({
     mutationFn: (submission: CustomerRetainSubmission) =>
       requestCustomerRetain(customerId, submission),
-    onSuccess: (response) => {
+    onSuccess: (response, submission) => {
       if (response.status !== 'RETAINED' || response.fieldErrors || response.formError) {
         return;
       }
-      replaceCustomerDetail(queryClient, customerId, { status: 'RETAINED' });
+      replaceCustomerDetail(queryClient, customerId, {
+        status: 'RETAINED',
+        caseType: isCaseType(submission.caseType) ? submission.caseType : null,
+      });
       void queryClient.invalidateQueries({ queryKey: customerQueryKeys.lists() });
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.consultations(customerId),
       });
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.installments(customerId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: customerQueryKeys.caseProgress(customerId),
       });
       void queryClient.invalidateQueries({
         queryKey: customerQueryKeys.summary(customerId),

@@ -1,4 +1,5 @@
 import { readTodayWork } from '~/features/today/api/today.server';
+import { parseTodayDate } from '~/features/today/type';
 import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { Route } from './+types/api.today';
@@ -8,24 +9,37 @@ const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const FORBIDDEN_MESSAGE = '오늘의 업무를 볼 권한이 없습니다.';
 const NOT_FOUND_MESSAGE = '회사를 찾을 수 없습니다.';
 const READ_FAILED_MESSAGE = '오늘의 업무를 불러오지 못했습니다. 다시 시도하세요.';
+const DATE_RANGE_MESSAGE = '시작일은 종료일보다 늦을 수 없습니다.';
 
 export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
   if (request.method !== 'GET') {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 405);
   }
 
-  const { result, headers } = await readTodayWork(request);
+  const url = new URL(request.url);
+  const from = parseTodayDate(url.searchParams.get('from'));
+  const to = parseTodayDate(url.searchParams.get('to'));
+  if (from === null || to === null || from === '' || to === '') {
+    return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 400);
+  }
+  if (from > to) {
+    return jsonResponse({ formError: DATE_RANGE_MESSAGE }, 400);
+  }
+
+  const { result, headers } = await readTodayWork(request, { from, to });
   switch (result.status) {
     case 'ok':
       return jsonResponse(
         {
-          recontactCount: result.recontactCount,
-          dueCaseCount: result.dueCaseCount,
+          totalRetainer: result.totalRetainer,
+          receivedAmount: result.receivedAmount,
+          processedCount: result.processedCount,
+          retainedCount: result.retainedCount,
+          retentionRate: result.retentionRate,
           overdueCustomerCount: result.overdueCustomerCount,
-          overdueAmount: result.overdueAmount,
-          contacts: result.contacts,
-          cases: result.cases,
-          overdueInstallments: result.overdueInstallments,
+          deposits: result.deposits,
+          overdueCustomers: result.overdueCustomers,
+          upcomingPayments: result.upcomingPayments,
         },
         200,
         headers,

@@ -2,9 +2,15 @@ import { createCustomer, readCustomers } from '~/features/customers/api/customer
 import {
   MAX_CUSTOMER_KEYWORD_LENGTH,
   isConsultationStatusParam,
-  isCustomerCreateSubmission,
+  isCustomerProfileSubmission,
+  isInflowSourceParam,
   parseConsultationStatus,
+  parseCustomerDate,
+  parseCustomerListView,
   parseCustomerSearchField,
+  parseCustomerSortDirection,
+  parseCustomerSortField,
+  parseInflowSource,
 } from '~/features/customers/type';
 import { jsonResponse } from '~/lib/jsonResponse.server';
 
@@ -18,6 +24,7 @@ const NOT_FOUND_MESSAGE = '회사를 찾을 수 없습니다.';
 const READ_FAILED_MESSAGE = '상담 고객 목록을 불러오지 못했습니다. 다시 시도하세요.';
 const CREATE_FORBIDDEN_MESSAGE = '상담 고객을 등록할 권한이 없습니다.';
 const CREATE_FAILED_MESSAGE = '상담 고객을 등록하지 못했습니다. 다시 시도하세요.';
+const DATE_RANGE_MESSAGE = '등록일 시작일은 종료일보다 늦을 수 없습니다.';
 
 function parsePage(value: string | null): number | null {
   if (value === null) {
@@ -33,21 +40,46 @@ function parsePage(value: string | null): number | null {
   return page;
 }
 
-function readListQuery(url: URL): CustomerListQuery | null {
+function readListQuery(url: URL): CustomerListQuery | 'range' | null {
   const field = parseCustomerSearchField(url.searchParams.get('field'));
   const statusParam = url.searchParams.get('status');
+  const sourceParam = url.searchParams.get('source');
+  const from = parseCustomerDate(url.searchParams.get('from'));
+  const to = parseCustomerDate(url.searchParams.get('to'));
   const page = parsePage(url.searchParams.get('page'));
+  const sortField = parseCustomerSortField(url.searchParams.get('sort'));
+  const sortDirection = parseCustomerSortDirection(url.searchParams.get('order'));
+  const view = parseCustomerListView(url.searchParams.get('view'));
   const keyword = (url.searchParams.get('q') ?? '').trim();
-  if (field === null || page === null || !isConsultationStatusParam(statusParam)) {
+  if (
+    field === null ||
+    page === null ||
+    from === null ||
+    to === null ||
+    sortField === null ||
+    sortDirection === null ||
+    view === null ||
+    !isConsultationStatusParam(statusParam) ||
+    !isInflowSourceParam(sourceParam)
+  ) {
     return null;
   }
   if (keyword.length > MAX_CUSTOMER_KEYWORD_LENGTH) {
     return null;
   }
+  if (from !== '' && to !== '' && from > to) {
+    return 'range';
+  }
   return {
     field,
     keyword,
     status: parseConsultationStatus(statusParam),
+    source: parseInflowSource(sourceParam),
+    from,
+    to,
+    sortField,
+    sortDirection,
+    view,
     page,
   };
 }
@@ -58,6 +90,9 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
   }
 
   const query = readListQuery(new URL(request.url));
+  if (query === 'range') {
+    return jsonResponse({ formError: DATE_RANGE_MESSAGE }, 400);
+  }
   if (!query) {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 400);
   }
@@ -101,18 +136,11 @@ export async function action({ request }: Route.ActionArgs): Promise<Response> {
   } catch {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 400);
   }
-  if (!isCustomerCreateSubmission(payload)) {
+  if (!isCustomerProfileSubmission(payload)) {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 400);
   }
 
-  const { result, headers } = await createCustomer(
-    request,
-    payload.name,
-    payload.phone,
-    payload.source,
-    payload.assigneeId,
-    payload.nextContactOn,
-  );
+  const { result, headers } = await createCustomer(request, payload);
   switch (result.status) {
     case 'ok':
       return jsonResponse({ id: result.id }, 200, headers);
@@ -128,6 +156,8 @@ export async function action({ request }: Route.ActionArgs): Promise<Response> {
       return jsonResponse({ formError: UNAUTHENTICATED_MESSAGE }, 401, headers);
     case 'forbidden':
       return jsonResponse({ formError: CREATE_FORBIDDEN_MESSAGE }, 403, headers);
+    case 'not-found':
+      return jsonResponse({ formError: CREATE_FAILED_MESSAGE }, 404, headers);
     case 'failed':
       return jsonResponse({ formError: CREATE_FAILED_MESSAGE }, 500, headers);
     default: {

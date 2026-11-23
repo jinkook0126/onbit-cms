@@ -2,23 +2,16 @@ import { useState } from 'react';
 
 import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
-import { ConsultationCreateDialog } from '~/features/customers/components/ConsultationCreateDialog';
 import { ConsultationEditDialog } from '~/features/customers/components/ConsultationEditDialog';
-import { ConsultationStatusForm } from '~/features/customers/components/ConsultationStatusForm';
 import { readQueryError } from '~/lib/formError';
-import { fieldLabel, fieldValue, pageAlert, pageSurface } from '~/lib/styles';
+import { fieldLabel, fieldValue, pageSurface } from '~/lib/styles';
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { JSX } from 'react';
-import type {
-  ConsultationListItem,
-  ConsultationListResponse,
-  ConsultationStatus,
-} from '~/features/customers/type';
+import type { ConsultationListItem, ConsultationListResponse } from '~/features/customers/type';
 
 type CustomerConsultationListProps = {
   customerId: string;
-  status: ConsultationStatus;
   consultations: UseQueryResult<ConsultationListResponse>;
 };
 
@@ -59,7 +52,7 @@ function ConsultationCard({
   const consultedOn = formatConsultationCreatedAt(consultation.createdAt);
 
   return (
-    <article className={`${pageSurface} grid gap-3 p-5`}>
+    <article className={`${pageSurface} grid gap-3 p-4`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap gap-x-8 gap-y-2">
           <p className="flex items-center gap-2">
@@ -101,28 +94,26 @@ function ConsultationCard({
 
 export function CustomerConsultationList({
   customerId,
-  status,
   consultations,
 }: CustomerConsultationListProps): JSX.Element {
   const [editing, setEditing] = useState<ConsultationListItem | null>(null);
   let body: JSX.Element;
   if (consultations.isPending) {
     body = (
-      <div className={`${pageSurface} p-5`} aria-hidden="true">
-        <Skeleton className="h-32 w-full" />
+      <div className={`${pageSurface} p-4`} aria-hidden="true">
+        <Skeleton className="h-24 w-full" />
       </div>
     );
   } else if (consultations.isError) {
     body = (
-      <p role="alert" className={pageAlert}>
+      <p role="alert" className="text-sm text-destructive">
         {readQueryError(consultations.error, '상담 이력을 불러오지 못했습니다.')}
       </p>
     );
   } else if (consultations.data.consultations.length === 0) {
     body = (
-      <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-16 text-center">
-        <p className="text-sm font-medium text-foreground">상담 이력 영역</p>
-        <p className="mt-2 max-w-md text-sm text-muted-foreground">등록된 상담 이력이 없습니다.</p>
+      <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-8 text-center">
+        <p className="text-sm text-muted-foreground">등록된 상담 이력이 없습니다.</p>
       </div>
     );
   } else {
@@ -137,13 +128,7 @@ export function CustomerConsultationList({
 
   return (
     <div className="grid gap-3">
-      <div
-        className={`${pageSurface} flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between`}
-      >
-        <h3 className="sr-only">상담 이력</h3>
-        <ConsultationStatusForm key={customerId} customerId={customerId} status={status} />
-        <ConsultationCreateDialog customerId={customerId} />
-      </div>
+      <h3 className="text-sm font-medium text-foreground">상담 이력</h3>
       {body}
       {editing ? (
         <ConsultationEditDialog

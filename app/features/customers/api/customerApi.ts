@@ -1,12 +1,13 @@
 import {
-  isCaseProgress,
-  isCaseProgressUpdateResponse,
   isConsultationCreateResponse,
   isConsultationListResponse,
   isCustomerAssigneeBatchResponse,
   isCustomerAssigneeResponse,
-  isCustomerCreateResponse,
+  isCustomerCaseTypeResponse,
+  isCustomerProfileResponse,
+  isCustomerReminderResponse,
   isCustomerDetail,
+  isCustomerFavoriteResponse,
   isCustomerImportResponse,
   isCustomerListResponse,
   isCustomerRetainResponse,
@@ -21,21 +22,22 @@ import {
 import { ApiError, apiClient } from '~/lib/apiClient';
 
 import type {
-  CaseProgress,
-  CaseProgressUpdateResponse,
-  CaseProgressUpdateSubmission,
   ConsultationCreateResponse,
   ConsultationCreateSubmission,
   ConsultationListResponse,
   CustomerAssigneeBatchResponse,
   CustomerAssigneeBatchSubmission,
   CustomerAssigneeResponse,
-  CustomerCreateResponse,
-  CustomerCreateSubmission,
+  CustomerCaseTypeResponse,
+  CustomerCaseTypeSubmission,
+  CustomerProfileResponse,
+  CustomerProfileSubmission,
   CustomerImportResponse,
   CustomerDetail,
+  CustomerFavoriteResponse,
   CustomerListParams,
   CustomerListResponse,
+  CustomerReminderResponse,
   CustomerRetainResponse,
   CustomerRetainSubmission,
   CustomerStatusResponse,
@@ -53,6 +55,7 @@ import type {
 
 const customersApiPath = '/api/customers';
 const customerAssigneesApiPath = '/api/customers/assignees';
+const customerRemindersApiPath = '/api/customers/reminders';
 const customerImportApiPath = '/api/customers/import';
 const customerImportTemplateApiPath = '/api/customers/import-template';
 const customerImportTemplateName = '상담고객_업로드_템플릿.xlsx';
@@ -67,6 +70,24 @@ function customersPath(params: CustomerListParams): string {
   }
   if (params.status) {
     search.set('status', params.status);
+  }
+  if (params.source) {
+    search.set('source', params.source);
+  }
+  if (params.from !== '') {
+    search.set('from', params.from);
+  }
+  if (params.to !== '') {
+    search.set('to', params.to);
+  }
+  if (params.sort.field !== 'registered') {
+    search.set('sort', params.sort.field);
+  }
+  if (params.sort.direction !== 'desc') {
+    search.set('order', params.sort.direction);
+  }
+  if (params.view !== 'all') {
+    search.set('view', params.view);
   }
   if (params.page > 1) {
     search.set('page', String(params.page));
@@ -84,6 +105,30 @@ export async function requestCustomerList(
 ): Promise<CustomerListResponse> {
   const result = await apiClient(customersPath(params), { signal });
   if (!result.ok || !isCustomerListResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestSetCustomerFavorite(
+  customerId: string,
+  favorited: boolean,
+): Promise<CustomerFavoriteResponse> {
+  const result = await apiClient(`${customersApiPath}/${customerId}/favorite`, {
+    method: 'PUT',
+    body: { favorited },
+  });
+  if (!result.ok || !isCustomerFavoriteResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCustomerReminders(
+  signal?: AbortSignal,
+): Promise<CustomerReminderResponse> {
+  const result = await apiClient(customerRemindersApiPath, { signal });
+  if (!result.ok || !isCustomerReminderResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;
@@ -124,6 +169,13 @@ export async function requestCustomerDetail(
   return result.body;
 }
 
+export async function requestCustomerDelete(customerId: string): Promise<void> {
+  const result = await apiClient(customerPath(customerId), { method: 'DELETE' });
+  if (!result.ok) {
+    throw new ApiError(result.status, result.body);
+  }
+}
+
 export async function requestCustomerSummary(
   customerId: string,
   signal?: AbortSignal,
@@ -141,6 +193,20 @@ export async function requestCustomerStatusUpdate(
 ): Promise<CustomerStatusResponse> {
   const result = await apiClient(customerPath(customerId), { method: 'PATCH', body: submission });
   if (!isCustomerStatusResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCustomerCaseTypeUpdate(
+  customerId: string,
+  submission: CustomerCaseTypeSubmission,
+): Promise<CustomerCaseTypeResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/case-type`, {
+    method: 'PATCH',
+    body: submission,
+  });
+  if (!isCustomerCaseTypeResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;
@@ -173,31 +239,6 @@ export async function requestRefund(
     body: submission,
   });
   if (!isRefundResponse(result.body)) {
-    throw new ApiError(result.status, result.body);
-  }
-  return result.body;
-}
-
-export async function requestCaseProgress(
-  customerId: string,
-  signal?: AbortSignal,
-): Promise<CaseProgress> {
-  const result = await apiClient(`${customerPath(customerId)}/case-progress`, { signal });
-  if (!result.ok || !isCaseProgress(result.body)) {
-    throw new ApiError(result.status, result.body);
-  }
-  return result.body;
-}
-
-export async function requestCaseProgressUpdate(
-  customerId: string,
-  submission: CaseProgressUpdateSubmission,
-): Promise<CaseProgressUpdateResponse> {
-  const result = await apiClient(`${customerPath(customerId)}/case-progress`, {
-    method: 'PATCH',
-    body: submission,
-  });
-  if (!isCaseProgressUpdateResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;
@@ -356,10 +397,24 @@ export async function requestCustomerImport(
 }
 
 export async function requestCustomerCreate(
-  submission: CustomerCreateSubmission,
-): Promise<CustomerCreateResponse> {
+  submission: CustomerProfileSubmission,
+): Promise<CustomerProfileResponse> {
   const result = await apiClient(customersApiPath, { method: 'POST', body: submission });
-  if (!isCustomerCreateResponse(result.body)) {
+  if (!isCustomerProfileResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestCustomerProfileUpdate(
+  customerId: string,
+  submission: CustomerProfileSubmission,
+): Promise<CustomerProfileResponse> {
+  const result = await apiClient(`${customerPath(customerId)}/profile`, {
+    method: 'PATCH',
+    body: submission,
+  });
+  if (!isCustomerProfileResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;

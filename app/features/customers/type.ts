@@ -15,7 +15,6 @@ export const MAX_INSTALLMENT_COUNT = 120;
 const promiseChangePrefixLimit = `${MAX_INSTALLMENT_COUNT}회차 납기 0000-00-00 -> 0000-00-00 / `
   .length;
 export const MAX_PROMISE_REASON_LENGTH = MAX_CONSULTATION_CONTENT_LENGTH - promiseChangePrefixLimit;
-export const MAX_CASE_NEXT_TASK_LENGTH = 200;
 
 export function customerPhoneDigits(value: string): string {
   return value.replace(/\D/g, '').slice(0, MAX_CUSTOMER_PHONE_LENGTH);
@@ -71,19 +70,9 @@ export const caseTypeLabels = {
   PERSONAL_WORKOUT: '개인워크아웃',
   FAST_DEBT_ADJUSTMENT: '신속채무조정',
   FRESH_START_FUND: '새출발기금',
+  REHABILITATION_AND_CREDIT_RECOVERY: '개회+신복위',
+  OTHER: '기타',
 } as const;
-
-export const caseProgressStageLabels = {
-  DOCUMENT_COLLECTION: '서류수집',
-  CORRECTION: '보정',
-  FILING: '접수',
-  COMMENCEMENT: '개시',
-  APPROVAL: '인가',
-  CLOSURE: '종결',
-} as const;
-
-export const initialCaseProgressStage = 'DOCUMENT_COLLECTION' satisfies CaseProgressStage;
-export const initialCaseNextTask = '서류 요청';
 
 export const inflowSourceLabels = {
   HOMEPAGE: '홈페이지',
@@ -92,10 +81,6 @@ export const inflowSourceLabels = {
   PHONE: '전화',
   OTHER: '기타',
 } as const;
-
-export const customerInstallmentTab = 'installments';
-export const customerConsultationTab = 'consultations';
-export const customerCaseProgressTab = 'case-progress';
 
 export const customerSearchFieldLabels = {
   name: '이름',
@@ -116,31 +101,12 @@ export const consultationStatusBadgeVariants = {
   'default' | 'secondary' | 'outline' | 'destructive' | 'success'
 >;
 export type CaseType = keyof typeof caseTypeLabels;
-export type CaseProgressStage = keyof typeof caseProgressStageLabels;
 
-export type CaseProgress = {
-  stage: CaseProgressStage;
-  nextTask: string;
-  taskDueOn: string | null;
-};
+const caseTypes = Object.keys(caseTypeLabels);
 
-export type CaseProgressUpdateFieldErrors = {
-  stage?: string;
-  nextTask?: string;
-  taskDueOn?: string;
-};
-
-export type CaseProgressUpdateSubmission = {
-  stage: string;
-  nextTask: string;
-  taskDueOn: string | null;
-};
-
-export type CaseProgressUpdateResponse = {
-  id?: string;
-  fieldErrors?: CaseProgressUpdateFieldErrors;
-  formError?: string;
-};
+export function isCaseType(value: unknown): value is CaseType {
+  return typeof value === 'string' && caseTypes.includes(value);
+}
 
 export type CustomerSummary = {
   totalAmount: number;
@@ -159,15 +125,40 @@ export type CustomerListItem = {
   source: InflowSource;
   status: ConsultationStatus;
   assigneeName: string | null;
+  caseType: CaseType | null;
+  registeredOn: string;
   nextContactOn: string | null;
+  firstProcessedOn: string | null;
+  contractedOn: string | null;
+  latestConsultation: string | null;
+  favorited: boolean;
 };
 
 export type CustomerDetail = {
   id: string;
   name: string;
   phone: string;
+  source: InflowSource;
+  assigneeId: string | null;
   assigneeName: string | null;
   status: ConsultationStatus;
+  caseType: CaseType | null;
+  registeredOn: string;
+  firstProcessedOn: string | null;
+  contractedOn: string | null;
+  retainerFee: number | null;
+  remainingRetainer: number | null;
+};
+
+export type CustomerReminder = {
+  id: string;
+  name: string;
+  nextContactOn: string;
+  latestConsultation: string | null;
+};
+
+export type CustomerReminderResponse = {
+  reminders: CustomerReminder[];
 };
 
 export type CustomerListResponse = {
@@ -177,10 +168,24 @@ export type CustomerListResponse = {
   total: number;
 };
 
+export type CustomerListView = 'all' | 'favorites';
+export type CustomerSortField = 'registered' | 'contracted';
+export type CustomerSortDirection = 'asc' | 'desc';
+
+export type CustomerListSort = {
+  field: CustomerSortField;
+  direction: CustomerSortDirection;
+};
+
 export type CustomerListParams = {
   field: CustomerSearchField;
   keyword: string;
   status: ConsultationStatus | null;
+  source: InflowSource | null;
+  from: string;
+  to: string;
+  sort: CustomerListSort;
+  view: CustomerListView;
   page: number;
 };
 
@@ -204,25 +209,33 @@ export type CustomerAssigneeBatchResponse = {
   formError?: string;
 };
 
-export type CustomerCreateFieldErrors = {
+export type CustomerProfileFieldErrors = {
   name?: string;
   phone?: string;
   source?: string;
   assigneeId?: string;
-  nextContactOn?: string;
+  status?: string;
+  caseType?: string;
+  firstProcessedOn?: string;
+  contractedOn?: string;
+  retainerFee?: string;
 };
 
-export type CustomerCreateSubmission = {
+export type CustomerProfileSubmission = {
   name: string;
   phone: string;
   source: string;
   assigneeId: string;
-  nextContactOn: string | null;
+  status: string;
+  caseType: string | null;
+  firstProcessedOn: string | null;
+  contractedOn: string | null;
+  retainerFee: string | null;
 };
 
-export type CustomerCreateResponse = {
+export type CustomerProfileResponse = {
   id?: string;
-  fieldErrors?: CustomerCreateFieldErrors;
+  fieldErrors?: CustomerProfileFieldErrors;
   formError?: string;
 };
 
@@ -301,7 +314,13 @@ function isCustomerListItem(value: unknown): value is CustomerListItem {
     isInflowSource(value.source) &&
     isConsultationStatus(value.status) &&
     isNullableString(value.assigneeName) &&
-    isNullableString(value.nextContactOn)
+    (value.caseType === null || isCaseType(value.caseType)) &&
+    typeof value.registeredOn === 'string' &&
+    isNullableString(value.nextContactOn) &&
+    isNullableString(value.firstProcessedOn) &&
+    isNullableString(value.contractedOn) &&
+    isNullableString(value.latestConsultation) &&
+    typeof value.favorited === 'boolean'
   );
 }
 
@@ -313,13 +332,30 @@ export function isCustomerDetail(value: unknown): value is CustomerDetail {
     typeof value.id === 'string' &&
     typeof value.name === 'string' &&
     typeof value.phone === 'string' &&
+    isInflowSource(value.source) &&
+    isNullableString(value.assigneeId) &&
     isNullableString(value.assigneeName) &&
-    isConsultationStatus(value.status)
+    isConsultationStatus(value.status) &&
+    (value.caseType === null || isCaseType(value.caseType)) &&
+    typeof value.registeredOn === 'string' &&
+    isNullableString(value.firstProcessedOn) &&
+    isNullableString(value.contractedOn) &&
+    (value.retainerFee === null || isWonAmount(value.retainerFee)) &&
+    (value.remainingRetainer === null || isWonAmount(value.remainingRetainer))
   );
 }
 
 export type CustomerStatusSubmission = {
   status: ConsultationStatus;
+};
+
+export type CustomerCaseTypeSubmission = {
+  caseType: CaseType;
+};
+
+export type CustomerCaseTypeResponse = {
+  caseType?: CaseType;
+  formError?: string;
 };
 
 export type CustomerStatusResponse = {
@@ -355,6 +391,20 @@ export function isCustomerStatusSubmission(value: unknown): value is CustomerSta
   return isRecord(value) && isConsultationStatus(value.status);
 }
 
+export function isCustomerCaseTypeSubmission(value: unknown): value is CustomerCaseTypeSubmission {
+  return isRecord(value) && isCaseType(value.caseType);
+}
+
+export function isCustomerCaseTypeResponse(value: unknown): value is CustomerCaseTypeResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.formError !== undefined && typeof value.formError !== 'string') {
+    return false;
+  }
+  return value.caseType === undefined || isCaseType(value.caseType);
+}
+
 export function isCustomerStatusResponse(value: unknown): value is CustomerStatusResponse {
   if (!isRecord(value)) {
     return false;
@@ -363,6 +413,25 @@ export function isCustomerStatusResponse(value: unknown): value is CustomerStatu
     return false;
   }
   return value.status === undefined || isConsultationStatus(value.status);
+}
+
+function isCustomerReminder(value: unknown): value is CustomerReminder {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.nextContactOn === 'string' &&
+    isNullableString(value.latestConsultation)
+  );
+}
+
+export function isCustomerReminderResponse(value: unknown): value is CustomerReminderResponse {
+  if (!isRecord(value) || !Array.isArray(value.reminders)) {
+    return false;
+  }
+  return value.reminders.every(isCustomerReminder);
 }
 
 export function isCustomerListResponse(value: unknown): value is CustomerListResponse {
@@ -378,7 +447,17 @@ export function isCustomerListResponse(value: unknown): value is CustomerListRes
   return value.customers.every(isCustomerListItem);
 }
 
-const customerCreateErrorKeys = ['name', 'phone', 'source', 'assigneeId', 'nextContactOn'] as const;
+const customerProfileErrorKeys = [
+  'name',
+  'phone',
+  'source',
+  'assigneeId',
+  'status',
+  'caseType',
+  'firstProcessedOn',
+  'contractedOn',
+  'retainerFee',
+] as const;
 
 function isCustomerAssigneeOption(value: unknown): value is CustomerAssigneeOption {
   if (!isRecord(value)) {
@@ -426,16 +505,16 @@ export function isCustomerAssigneeBatchResponse(
   return true;
 }
 
-function isCustomerCreateFieldErrors(value: unknown): value is CustomerCreateFieldErrors {
+function isCustomerProfileFieldErrors(value: unknown): value is CustomerProfileFieldErrors {
   if (!isRecord(value)) {
     return false;
   }
-  return customerCreateErrorKeys.every(
+  return customerProfileErrorKeys.every(
     (key) => value[key] === undefined || typeof value[key] === 'string',
   );
 }
 
-export function isCustomerCreateSubmission(value: unknown): value is CustomerCreateSubmission {
+export function isCustomerProfileSubmission(value: unknown): value is CustomerProfileSubmission {
   if (!isRecord(value)) {
     return false;
   }
@@ -444,7 +523,11 @@ export function isCustomerCreateSubmission(value: unknown): value is CustomerCre
     typeof value.phone === 'string' &&
     typeof value.source === 'string' &&
     typeof value.assigneeId === 'string' &&
-    (value.nextContactOn === null || typeof value.nextContactOn === 'string')
+    typeof value.status === 'string' &&
+    (value.caseType === null || typeof value.caseType === 'string') &&
+    (value.firstProcessedOn === null || typeof value.firstProcessedOn === 'string') &&
+    (value.contractedOn === null || typeof value.contractedOn === 'string') &&
+    (value.retainerFee === null || typeof value.retainerFee === 'string')
   );
 }
 
@@ -506,7 +589,7 @@ export function isConsultationCreateResponse(value: unknown): value is Consultat
   return true;
 }
 
-export function isCustomerCreateResponse(value: unknown): value is CustomerCreateResponse {
+export function isCustomerProfileResponse(value: unknown): value is CustomerProfileResponse {
   if (!isRecord(value)) {
     return false;
   }
@@ -516,7 +599,7 @@ export function isCustomerCreateResponse(value: unknown): value is CustomerCreat
   if (value.formError !== undefined && typeof value.formError !== 'string') {
     return false;
   }
-  if (value.fieldErrors !== undefined && !isCustomerCreateFieldErrors(value.fieldErrors)) {
+  if (value.fieldErrors !== undefined && !isCustomerProfileFieldErrors(value.fieldErrors)) {
     return false;
   }
   return true;
@@ -679,12 +762,6 @@ function isInstallmentListItem(value: unknown): value is InstallmentListItem {
   );
 }
 
-const caseProgressStages = Object.keys(caseProgressStageLabels);
-
-export function isCaseProgressStage(value: unknown): value is CaseProgressStage {
-  return typeof value === 'string' && caseProgressStages.includes(value);
-}
-
 function isWonAmount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
@@ -700,54 +777,6 @@ export function isCustomerSummary(value: unknown): value is CustomerSummary {
     isWonAmount(value.remainingRetainer) &&
     isWonAmount(value.overdue)
   );
-}
-
-export function isCaseProgress(value: unknown): value is CaseProgress {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return (
-    isCaseProgressStage(value.stage) &&
-    typeof value.nextTask === 'string' &&
-    (value.taskDueOn === null || typeof value.taskDueOn === 'string')
-  );
-}
-
-export function isCaseProgressUpdateSubmission(
-  value: unknown,
-): value is CaseProgressUpdateSubmission {
-  return (
-    isRecord(value) &&
-    typeof value.stage === 'string' &&
-    typeof value.nextTask === 'string' &&
-    (value.taskDueOn === null || typeof value.taskDueOn === 'string')
-  );
-}
-
-function isCaseProgressUpdateFieldErrors(value: unknown): value is CaseProgressUpdateFieldErrors {
-  if (!isRecord(value)) {
-    return false;
-  }
-  const stage = value.stage === undefined || typeof value.stage === 'string';
-  const nextTask = value.nextTask === undefined || typeof value.nextTask === 'string';
-  const taskDueOn = value.taskDueOn === undefined || typeof value.taskDueOn === 'string';
-  return stage && nextTask && taskDueOn;
-}
-
-export function isCaseProgressUpdateResponse(value: unknown): value is CaseProgressUpdateResponse {
-  if (!isRecord(value)) {
-    return false;
-  }
-  if (value.id !== undefined && typeof value.id !== 'string') {
-    return false;
-  }
-  if (value.formError !== undefined && typeof value.formError !== 'string') {
-    return false;
-  }
-  if (value.fieldErrors !== undefined && !isCaseProgressUpdateFieldErrors(value.fieldErrors)) {
-    return false;
-  }
-  return true;
 }
 
 export function isInstallmentListResponse(value: unknown): value is InstallmentListResponse {
@@ -977,6 +1006,103 @@ export function parseCustomerSearchField(value: string | null): CustomerSearchFi
     return 'name';
   }
   if (isCustomerSearchField(value)) {
+    return value;
+  }
+  return null;
+}
+
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const [yearText, monthText, dayText] = value.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+export function parseCustomerListView(value: string | null): CustomerListView | null {
+  if (value === null || value === '' || value === 'all') {
+    return 'all';
+  }
+  if (value === 'favorites') {
+    return 'favorites';
+  }
+  return null;
+}
+
+export type CustomerFavoriteSubmission = {
+  favorited: boolean;
+};
+
+export function isCustomerFavoriteSubmission(value: unknown): value is CustomerFavoriteSubmission {
+  return isRecord(value) && typeof value.favorited === 'boolean';
+}
+
+export type CustomerFavoriteResponse = {
+  favorited: boolean;
+};
+
+export function isCustomerFavoriteResponse(value: unknown): value is CustomerFavoriteResponse {
+  return isRecord(value) && typeof value.favorited === 'boolean';
+}
+
+export function parseCustomerSortField(value: string | null): CustomerSortField | null {
+  if (value === null || value === '' || value === 'registered') {
+    return 'registered';
+  }
+  if (value === 'contracted') {
+    return 'contracted';
+  }
+  return null;
+}
+
+export function parseCustomerSortDirection(value: string | null): CustomerSortDirection | null {
+  if (value === null || value === '' || value === 'desc') {
+    return 'desc';
+  }
+  if (value === 'asc') {
+    return 'asc';
+  }
+  return null;
+}
+
+export function parseCustomerDate(value: string | null): string | null {
+  if (value === null || value === '') {
+    return '';
+  }
+  if (!isCalendarDate(value)) {
+    return null;
+  }
+  return value;
+}
+
+export function seoulCalendarToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+export function seoulMonthStart(today = seoulCalendarToday()): string {
+  return `${today.slice(0, 7)}-01`;
+}
+
+export function isInflowSourceParam(value: string | null): boolean {
+  return value === null || value === 'all' || isInflowSource(value);
+}
+
+export function parseInflowSource(value: string | null): InflowSource | null {
+  if (value === null || value === 'all') {
+    return null;
+  }
+  if (isInflowSource(value)) {
     return value;
   }
   return null;

@@ -52,26 +52,12 @@ enum CaseType {
   FAST_DEBT_ADJUSTMENT
   /// 새출발기금
   FRESH_START_FUND
+  /// 개회와 신복위를 함께 진행한다.
+  REHABILITATION_AND_CREDIT_RECOVERY
+  /// 기타
+  OTHER
 
   @@map("case_type")
-}
-
-/// 사건 진행 단계. 수임하면 서류수집부터 시작한다.
-enum CaseProgressStage {
-  /// 서류수집
-  DOCUMENT_COLLECTION
-  /// 보정
-  CORRECTION
-  /// 접수
-  FILING
-  /// 개시
-  COMMENCEMENT
-  /// 인가
-  APPROVAL
-  /// 종결
-  CLOSURE
-
-  @@map("case_progress_stage")
 }
 
 /// 분납 일정의 구분. 계약금은 한 줄이고, 회차는 분납 회수만큼 있다.
@@ -153,6 +139,7 @@ model User {
   editedConsultations Consultation[]       @relation("ConsultationEditor")
   actedPayments       InstallmentPayment[] @relation("PaymentActor")
   actedRefunds        InstallmentRefund[]  @relation("RefundActor")
+  customerFavorites   CustomerFavorite[]
 
   @@index([companyId])
   @@index([teamId])
@@ -181,26 +168,31 @@ model Team {
 
 /// 회사의 상담 고객. 상담 상태와 유입처는 ENUM이고, 담당 직원과 다음 연락일은 아직 없을 수 있다.
 model Customer {
-  id            String             @id @default(uuid()) @db.Uuid
-  companyId     String             @map("company_id") @db.Uuid
-  name          String
+  id               String             @id @default(uuid()) @db.Uuid
+  companyId        String             @map("company_id") @db.Uuid
+  name             String
   /// 연락 전화번호. 하이픈 없이 숫자만 저장한다.
-  phone         String             @db.VarChar(20)
-  source        InflowSource
+  phone            String             @db.VarChar(20)
+  source           InflowSource
   /// 현재 상담 상태.
-  status        ConsultationStatus @default(IN_CONSULTATION)
+  status           ConsultationStatus @default(IN_CONSULTATION)
   /// 담당 사용자 id. 아직 없으면 NULL이다.
   /// 정하면 같은 회사의 활성 직원이어야 하고, 회사 담당 마스터는 본인을 담당으로 둘 수 있다.
-  assigneeId    String?            @map("assignee_id") @db.Uuid
+  assigneeId       String?            @map("assignee_id") @db.Uuid
   /// 다음 연락일. 아직 없으면 NULL이다.
-  nextContactOn DateTime?          @map("next_contact_on") @db.Date
-  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  nextContactOn    DateTime?          @map("next_contact_on") @db.Date
+  /// DB 최초 처리일. 등록할 때 비우면 NULL이다.
+  firstProcessedOn DateTime?          @map("first_processed_on") @db.Date
+  /// 수임 전에 고른 사건 유형. 수임 후에는 사건의 유형과 같게 맞춘다.
+  caseType         CaseType?          @map("case_type")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   assignee      User?          @relation("CustomerAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   consultations Consultation[]
   customerCase  CustomerCase?
+  favorites     CustomerFavorite[]
 
   @@index([companyId])
   @@index([assigneeId])
@@ -233,29 +225,37 @@ model Consultation {
   @@map("consultations")
 }
 
+/// 사용자가 상담 고객 목록에 표시해 둔 즐겨찾기. 사용자마다 따로 둔다.
+model CustomerFavorite {
+  userId     String   @map("user_id") @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([userId, customerId])
+  @@index([customerId])
+  @@map("customer_favorites")
+}
+
 /// 수임으로 전환할 때 만드는 사건. 고객당 하나다.
 model CustomerCase {
-  id               String            @id @default(uuid()) @db.Uuid
-  customerId       String            @unique @map("customer_id") @db.Uuid
+  id               String   @id @default(uuid()) @db.Uuid
+  customerId       String   @unique @map("customer_id") @db.Uuid
   /// 계약일.
-  contractedOn     DateTime          @map("contracted_on") @db.Date
-  caseType         CaseType          @map("case_type")
+  contractedOn     DateTime @map("contracted_on") @db.Date
+  caseType         CaseType @map("case_type")
   /// 수임료. 원 단위 정수.
-  retainerFee      Int               @map("retainer_fee")
+  retainerFee      Int      @map("retainer_fee")
   /// 계약금. 원 단위 정수.
   deposit          Int
   /// 분납 회수.
-  installmentCount Int               @map("installment_count")
+  installmentCount Int      @map("installment_count")
   /// 첫 회차 납부일.
-  firstPaymentOn   DateTime          @map("first_payment_on") @db.Date
-  /// 진행 단계. 수임 직후는 서류수집이다.
-  progressStage    CaseProgressStage @default(DOCUMENT_COLLECTION) @map("progress_stage")
-  /// 다음 할 일. 수임 직후는 서류 요청이다.
-  nextTask         String            @default("서류 요청") @map("next_task")
-  /// 업무 기한. 아직 없으면 NULL이고 화면에는 미정이다.
-  taskDueOn        DateTime?         @map("task_due_on") @db.Date
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  firstPaymentOn   DateTime @map("first_payment_on") @db.Date
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   customer     Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
   installments CustomerInstallment[]

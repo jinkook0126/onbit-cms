@@ -1,4 +1,8 @@
-import { readCustomer, updateCustomerStatus } from '~/features/customers/api/customers.server';
+import {
+  deleteCustomer,
+  readCustomer,
+  updateCustomerStatus,
+} from '~/features/customers/api/customers.server';
 import { isCustomerStatusSubmission } from '~/features/customers/type';
 import { jsonResponse } from '~/lib/jsonResponse.server';
 
@@ -11,6 +15,8 @@ const STATUS_FORBIDDEN_MESSAGE = '상담 상태를 변경할 권한이 없습니
 const NOT_FOUND_MESSAGE = '상담 고객을 찾을 수 없습니다.';
 const READ_FAILED_MESSAGE = '상담 고객을 불러오지 못했습니다. 다시 시도하세요.';
 const STATUS_FAILED_MESSAGE = '상담 상태를 변경하지 못했습니다. 다시 시도하세요.';
+const DELETE_FORBIDDEN_MESSAGE = '상담 고객을 삭제할 권한이 없습니다.';
+const DELETE_FAILED_MESSAGE = '상담 고객을 삭제하지 못했습니다. 다시 시도하세요.';
 const RETAINED_STATUS_MESSAGE = '수임은 상담 상태에서 고를 수 없습니다.';
 const RETAINED_LOCKED_MESSAGE = '수임 상태는 바꿀 수 없습니다.';
 
@@ -39,6 +45,26 @@ export async function loader({ request, params }: Route.LoaderArgs): Promise<Res
 }
 
 export async function action({ request, params }: Route.ActionArgs): Promise<Response> {
+  if (request.method === 'DELETE') {
+    const { result, headers } = await deleteCustomer(request, params.customerId);
+    switch (result.status) {
+      case 'ok':
+        return jsonResponse({ id: params.customerId }, 200, headers);
+      case 'anonymous':
+        return jsonResponse({ formError: UNAUTHENTICATED_MESSAGE }, 401, headers);
+      case 'forbidden':
+        return jsonResponse({ formError: DELETE_FORBIDDEN_MESSAGE }, 403, headers);
+      case 'not-found':
+        return jsonResponse({ formError: NOT_FOUND_MESSAGE }, 404, headers);
+      case 'failed':
+        return jsonResponse({ formError: DELETE_FAILED_MESSAGE }, 500, headers);
+      default: {
+        const unreachable: never = result;
+        return unreachable;
+      }
+    }
+  }
+
   if (request.method !== 'PATCH') {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 405);
   }

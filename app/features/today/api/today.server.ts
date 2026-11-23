@@ -1,3 +1,4 @@
+import { formatContactDate, parseContactDate } from '~/features/customers/api/customerDates.server';
 import {
   customerVisibilityWhere,
   resolveCustomerActor,
@@ -5,136 +6,107 @@ import {
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel } from '~/lib/error.server';
 
-import type { TodayCaseTask, TodayContact, TodayOverdueInstallment } from '~/features/today/type';
+import type { CaseType } from '~/features/customers/type';
+import type {
+  TodayDeposit,
+  TodayOverdueCustomer,
+  TodayUpcomingPayment,
+} from '~/features/today/type';
 import type { Prisma } from '../../../../generated/prisma/client';
+
+const upcomingDaySpan = 3;
+
+export type TodayWorkQuery = {
+  from: string;
+  to: string;
+};
 
 export type TodayWorkResult =
   | {
       status: 'ok';
-      recontactCount: number;
-      dueCaseCount: number;
+      totalRetainer: number;
+      receivedAmount: number;
+      processedCount: number;
+      retainedCount: number;
+      retentionRate: number | null;
       overdueCustomerCount: number;
-      overdueAmount: number;
-      contacts: TodayContact[];
-      cases: TodayCaseTask[];
-      overdueInstallments: TodayOverdueInstallment[];
+      deposits: TodayDeposit[];
+      overdueCustomers: TodayOverdueCustomer[];
+      upcomingPayments: TodayUpcomingPayment[];
     }
   | { status: 'anonymous' }
   | { status: 'forbidden' }
   | { status: 'not-found' }
   | { status: 'failed' };
 
-function seoulToday(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+function addUtcDays(date: Date, days: number): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
 }
 
-function seoulTodayDate(today: string): Date {
-  const [year, month, day] = today.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
+function dayOffset(start: Date, end: Date): number {
+  return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-function formatUtcDate(value: Date): string {
-  const year = value.getUTCFullYear();
-  const month = String(value.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(value.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function retentionRate(retainedCount: number, processedCount: number): number | null {
+  if (processedCount === 0) {
+    return null;
+  }
+  return Math.round((retainedCount / processedCount) * 1000) / 10;
 }
 
-async function readContacts(
+async function readDeposits(
   visibility: Prisma.CustomerWhereInput,
-  today: string,
-  todayDate: Date,
-): Promise<TodayContact[]> {
-  const customers = await prisma.customer.findMany({
+  fromDate: Date,
+  toDate: Date,
+): Promise<{ amount: number; deposits: TodayDeposit[] }> {
+  const rows = await prisma.installmentPayment.findMany({
     where: {
-      ...visibility,
-      consultations: { some: { nextContactOn: todayDate } },
+      paidOn: { gte: fromDate, lte: toDate },
+      installment: { customerCase: { customer: visibility } },
     },
-    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    orderBy: [{ paidOn: 'desc' }, { id: 'desc' }],
     select: {
       id: true,
-      name: true,
-      assignee: { select: { name: true } },
-      consultations: {
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        take: 1,
-        select: { content: true, nextContactOn: true },
-      },
-    },
-  });
-  return customers.flatMap((customer) => {
-    const latest = customer.consultations[0];
-    if (latest.nextContactOn == null || formatUtcDate(latest.nextContactOn) !== today) {
-      return [];
-    }
-    return [
-      {
-        customerId: customer.id,
-        customerName: customer.name,
-        assigneeName: customer.assignee?.name ?? null,
-        content: latest.content,
-      },
-    ];
-  });
-}
-
-async function readDueCases(
-  visibility: Prisma.CustomerWhereInput,
-  todayDate: Date,
-): Promise<TodayCaseTask[]> {
-  const cases = await prisma.customerCase.findMany({
-    where: {
-      taskDueOn: todayDate,
-      progressStage: { not: 'CLOSURE' },
-      customer: visibility,
-    },
-    orderBy: [{ customer: { name: 'asc' } }, { id: 'asc' }],
-    select: {
-      nextTask: true,
-      customer: {
+      amount: true,
+      paidOn: true,
+      installment: {
         select: {
-          id: true,
-          name: true,
-          assignee: { select: { name: true } },
+          kind: true,
+          customerCase: {
+            select: { customer: { select: { id: true, name: true } } },
+          },
         },
       },
     },
   });
-  return cases.map((item) => ({
-    customerId: item.customer.id,
-    customerName: item.customer.name,
-    assigneeName: item.customer.assignee?.name ?? null,
-    task: item.nextTask,
-  }));
+  let amount = 0;
+  const deposits: TodayDeposit[] = [];
+  for (const row of rows) {
+    amount += row.amount;
+    const customer = row.installment.customerCase.customer;
+    deposits.push({
+      id: row.id,
+      paidOn: formatContactDate(row.paidOn),
+      customerId: customer.id,
+      customerName: customer.name,
+      category: row.installment.kind,
+      amount: row.amount,
+    });
+  }
+  return { amount, deposits };
 }
 
-function compareOverdue(left: TodayOverdueInstallment, right: TodayOverdueInstallment): number {
-  if (left.promisedOn !== right.promisedOn) {
-    return left.promisedOn < right.promisedOn ? -1 : 1;
-  }
-  const nameOrder = left.customerName.localeCompare(right.customerName, 'ko');
-  if (nameOrder !== 0) {
-    return nameOrder;
-  }
-  return left.sequence - right.sequence;
-}
-
-async function readOverdue(
+async function readSchedule(
   visibility: Prisma.CustomerWhereInput,
-  todayDate: Date,
+  toDate: Date,
 ): Promise<{
-  customerCount: number;
-  amount: number;
-  installments: TodayOverdueInstallment[];
+  overdueCustomers: TodayOverdueCustomer[];
+  upcomingPayments: TodayUpcomingPayment[];
 }> {
+  const upcomingEnd = addUtcDays(toDate, upcomingDaySpan);
   const rows = await prisma.customerInstallment.findMany({
     where: {
-      promisedOn: { lt: todayDate },
+      promisedOn: { lte: upcomingEnd },
       customerCase: { customer: visibility },
     },
     select: {
@@ -146,51 +118,81 @@ async function readOverdue(
       receivedAmount: true,
       customerCase: {
         select: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              assignee: { select: { name: true } },
-            },
-          },
+          caseType: true,
+          customer: { select: { id: true, name: true } },
         },
       },
     },
   });
-  const installments: TodayOverdueInstallment[] = [];
+  const overdueByCustomer = new Map<
+    string,
+    { customerName: string; amount: number; caseType: CaseType }
+  >();
+  const upcomingPayments: TodayUpcomingPayment[] = [];
   for (const row of rows) {
-    const remainingAmount = Math.max(row.scheduledAmount - row.receivedAmount, 0);
-    if (remainingAmount === 0) {
+    const remaining = Math.max(row.scheduledAmount - row.receivedAmount, 0);
+    if (remaining === 0) {
       continue;
     }
     const customer = row.customerCase.customer;
-    installments.push({
+    if (row.promisedOn < toDate) {
+      const current = overdueByCustomer.get(customer.id);
+      if (current) {
+        current.amount += remaining;
+      } else {
+        overdueByCustomer.set(customer.id, {
+          customerName: customer.name,
+          amount: remaining,
+          caseType: row.customerCase.caseType,
+        });
+      }
+      continue;
+    }
+    upcomingPayments.push({
       id: row.id,
       customerId: customer.id,
       customerName: customer.name,
-      assigneeName: customer.assignee?.name ?? null,
+      amount: remaining,
+      promisedOn: formatContactDate(row.promisedOn),
       kind: row.kind,
       sequence: row.sequence,
-      promisedOn: formatUtcDate(row.promisedOn),
-      scheduledAmount: row.scheduledAmount,
-      remainingAmount,
+      dayOffset: dayOffset(toDate, row.promisedOn),
     });
   }
-  installments.sort(compareOverdue);
-  const customerIds = new Set(installments.map((installment) => installment.customerId));
-  let amount = 0;
-  for (const installment of installments) {
-    amount += installment.remainingAmount;
-  }
-  return { customerCount: customerIds.size, amount, installments };
+  const overdueCustomers = [...overdueByCustomer.entries()]
+    .map(([customerId, customer]) => ({
+      customerId,
+      customerName: customer.customerName,
+      amount: customer.amount,
+      caseType: customer.caseType,
+    }))
+    .sort((left, right) => left.customerName.localeCompare(right.customerName, 'ko'));
+  upcomingPayments.sort((left, right) => {
+    if (left.promisedOn !== right.promisedOn) {
+      return left.promisedOn < right.promisedOn ? -1 : 1;
+    }
+    const nameOrder = left.customerName.localeCompare(right.customerName, 'ko');
+    if (nameOrder !== 0) {
+      return nameOrder;
+    }
+    return left.sequence - right.sequence;
+  });
+  return { overdueCustomers, upcomingPayments };
 }
 
 export async function readTodayWork(
   request: Request,
+  query: TodayWorkQuery,
 ): Promise<{ result: TodayWorkResult; headers: Headers }> {
   const { actor, headers } = await resolveCustomerActor(request);
   if (actor.status !== 'ok') {
     return { result: actor, headers };
+  }
+
+  const fromDate = parseContactDate(query.from);
+  const toDate = parseContactDate(query.to);
+  if (fromDate === null || toDate === null || query.from > query.to) {
+    return { result: { status: 'failed' }, headers };
   }
 
   try {
@@ -202,23 +204,32 @@ export async function readTodayWork(
       return { result: { status: 'not-found' }, headers };
     }
     const visibility = await customerVisibilityWhere(actor);
-    const today = seoulToday();
-    const todayDate = seoulTodayDate(today);
-    const [contacts, cases, overdue] = await Promise.all([
-      readContacts(visibility, today, todayDate),
-      readDueCases(visibility, todayDate),
-      readOverdue(visibility, todayDate),
+    const period = { gte: fromDate, lte: toDate };
+    const [processedCount, retained, deposits, schedule] = await Promise.all([
+      prisma.customer.count({
+        where: { ...visibility, firstProcessedOn: period },
+      }),
+      prisma.customerCase.aggregate({
+        where: { contractedOn: period, customer: visibility },
+        _sum: { retainerFee: true },
+        _count: true,
+      }),
+      readDeposits(visibility, fromDate, toDate),
+      readSchedule(visibility, toDate),
     ]);
+    const retainedCount = retained._count;
     return {
       result: {
         status: 'ok',
-        recontactCount: contacts.length,
-        dueCaseCount: cases.length,
-        overdueCustomerCount: overdue.customerCount,
-        overdueAmount: overdue.amount,
-        contacts,
-        cases,
-        overdueInstallments: overdue.installments,
+        totalRetainer: retained._sum.retainerFee ?? 0,
+        receivedAmount: deposits.amount,
+        processedCount,
+        retainedCount,
+        retentionRate: retentionRate(retainedCount, processedCount),
+        overdueCustomerCount: schedule.overdueCustomers.length,
+        deposits: deposits.deposits,
+        overdueCustomers: schedule.overdueCustomers,
+        upcomingPayments: schedule.upcomingPayments,
       },
       headers,
     };

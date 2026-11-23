@@ -1,37 +1,51 @@
-export type TodayContact = {
+import { isCaseType } from '~/features/customers/type';
+
+import type { CaseType } from '~/features/customers/type';
+
+export type TodayDepositCategory = 'DEPOSIT' | 'INSTALLMENT';
+
+export type TodayDeposit = {
+  id: string;
+  paidOn: string;
   customerId: string;
   customerName: string;
-  assigneeName: string | null;
-  content: string;
+  category: TodayDepositCategory;
+  amount: number;
 };
 
-export type TodayCaseTask = {
+export type TodayOverdueCustomer = {
   customerId: string;
   customerName: string;
-  assigneeName: string | null;
-  task: string;
+  amount: number;
+  caseType: CaseType;
 };
 
-export type TodayOverdueInstallment = {
+export type TodayUpcomingPayment = {
   id: string;
   customerId: string;
   customerName: string;
-  assigneeName: string | null;
-  kind: 'DEPOSIT' | 'INSTALLMENT';
-  sequence: number;
+  amount: number;
   promisedOn: string;
-  scheduledAmount: number;
-  remainingAmount: number;
+  kind: TodayDepositCategory;
+  sequence: number;
+  dayOffset: number;
 };
 
 export type TodayWork = {
-  recontactCount: number;
-  dueCaseCount: number;
+  totalRetainer: number;
+  receivedAmount: number;
+  processedCount: number;
+  retainedCount: number;
+  retentionRate: number | null;
   overdueCustomerCount: number;
-  overdueAmount: number;
-  contacts: TodayContact[];
-  cases: TodayCaseTask[];
-  overdueInstallments: TodayOverdueInstallment[];
+  deposits: TodayDeposit[];
+  overdueCustomers: TodayOverdueCustomer[];
+  upcomingPayments: TodayUpcomingPayment[];
+};
+
+export const todayDepositCategoryLabels: Record<TodayDepositCategory, string> = {
+  DEPOSIT: '계약금',
+  INSTALLMENT: '회차수납',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -42,23 +56,78 @@ function isCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
-function isTodayContact(value: unknown): value is TodayContact {
+function isDateText(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function isCalendarDate(value: string): boolean {
+  if (!isDateText(value)) {
+    return false;
+  }
+  const [yearText, monthText, dayText] = value.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+export function parseTodayDate(value: string | null): string | null {
+  if (value === null || value === '') {
+    return '';
+  }
+  if (!isCalendarDate(value)) {
+    return null;
+  }
+  return value;
+}
+
+export function seoulCalendarToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+export function seoulMonthStart(today = seoulCalendarToday()): string {
+  return `${today.slice(0, 7)}-01`;
+}
+
+function isDepositCategory(value: unknown): value is TodayDepositCategory {
+  return value === 'DEPOSIT' || value === 'INSTALLMENT';
+}
+
+function isTodayDeposit(value: unknown): value is TodayDeposit {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.id === 'string' &&
+    isDateText(value.paidOn) &&
+    typeof value.customerId === 'string' &&
+    typeof value.customerName === 'string' &&
+    isDepositCategory(value.category) &&
+    isCount(value.amount)
+  );
+}
+
+function isTodayOverdueCustomer(value: unknown): value is TodayOverdueCustomer {
   if (!isRecord(value)) {
     return false;
   }
   return (
     typeof value.customerId === 'string' &&
     typeof value.customerName === 'string' &&
-    (value.assigneeName === null || typeof value.assigneeName === 'string') &&
-    typeof value.content === 'string'
+    isCount(value.amount) &&
+    isCaseType(value.caseType)
   );
 }
 
-function isDateText(value: unknown): value is string {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
-function isTodayOverdueInstallment(value: unknown): value is TodayOverdueInstallment {
+function isTodayUpcomingPayment(value: unknown): value is TodayUpcomingPayment {
   if (!isRecord(value)) {
     return false;
   }
@@ -66,25 +135,17 @@ function isTodayOverdueInstallment(value: unknown): value is TodayOverdueInstall
     typeof value.id === 'string' &&
     typeof value.customerId === 'string' &&
     typeof value.customerName === 'string' &&
-    (value.assigneeName === null || typeof value.assigneeName === 'string') &&
-    (value.kind === 'DEPOSIT' || value.kind === 'INSTALLMENT') &&
-    isCount(value.sequence) &&
+    isCount(value.amount) &&
     isDateText(value.promisedOn) &&
-    isCount(value.scheduledAmount) &&
-    isCount(value.remainingAmount)
+    isDepositCategory(value.kind) &&
+    isCount(value.sequence) &&
+    isCount(value.dayOffset) &&
+    value.dayOffset <= 3
   );
 }
 
-function isTodayCaseTask(value: unknown): value is TodayCaseTask {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return (
-    typeof value.customerId === 'string' &&
-    typeof value.customerName === 'string' &&
-    (value.assigneeName === null || typeof value.assigneeName === 'string') &&
-    typeof value.task === 'string'
-  );
+function isRetentionRate(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isFinite(value));
 }
 
 export function isTodayWork(value: unknown): value is TodayWork {
@@ -92,15 +153,17 @@ export function isTodayWork(value: unknown): value is TodayWork {
     return false;
   }
   return (
-    isCount(value.recontactCount) &&
-    isCount(value.dueCaseCount) &&
+    isCount(value.totalRetainer) &&
+    isCount(value.receivedAmount) &&
+    isCount(value.processedCount) &&
+    isCount(value.retainedCount) &&
+    isRetentionRate(value.retentionRate) &&
     isCount(value.overdueCustomerCount) &&
-    isCount(value.overdueAmount) &&
-    Array.isArray(value.contacts) &&
-    value.contacts.every(isTodayContact) &&
-    Array.isArray(value.cases) &&
-    value.cases.every(isTodayCaseTask) &&
-    Array.isArray(value.overdueInstallments) &&
-    value.overdueInstallments.every(isTodayOverdueInstallment)
+    Array.isArray(value.deposits) &&
+    value.deposits.every(isTodayDeposit) &&
+    Array.isArray(value.overdueCustomers) &&
+    value.overdueCustomers.every(isTodayOverdueCustomer) &&
+    Array.isArray(value.upcomingPayments) &&
+    value.upcomingPayments.every(isTodayUpcomingPayment)
   );
 }
