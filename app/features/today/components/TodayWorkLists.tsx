@@ -29,6 +29,7 @@ type TodayWorkListsProps = {
   upcomingPayments: TodayUpcomingPayment[];
 };
 
+const workListCard = 'h-168 max-h-168 min-h-0 gap-0 py-0 shadow-none';
 const labelCell = 'h-auto px-4 py-3 text-left text-sm font-medium text-foreground';
 const valueCell = 'truncate px-4 py-3 text-left align-middle';
 const amountCell = 'px-4 py-3 text-right align-middle whitespace-nowrap tabular-nums';
@@ -91,49 +92,47 @@ function DepositList({ deposits }: { deposits: TodayDeposit[] }): JSX.Element {
   let body = <EmptyMessage message="기간 내 입금 내역이 없습니다." />;
   if (deposits.length > 0) {
     body = (
-      <div className="max-h-96 overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-card">
-              <TableHead className={labelCell}>입금일</TableHead>
-              <TableHead className={labelCell}>고객이름</TableHead>
-              <TableHead className={labelCell}>구분</TableHead>
-              <TableHead className={cn(labelCell, 'text-right')}>입금액</TableHead>
+      <Table>
+        <TableHeader>
+          <TableRow className="border-border hover:bg-card">
+            <TableHead className={labelCell}>입금일</TableHead>
+            <TableHead className={labelCell}>고객이름</TableHead>
+            <TableHead className={labelCell}>구분</TableHead>
+            <TableHead className={cn(labelCell, 'text-right')}>입금액</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {deposits.map((deposit) => (
+            <TableRow
+              key={deposit.id}
+              className="cursor-pointer"
+              onClick={(event) => {
+                openCustomer(navigate, deposit.customerId, event);
+              }}
+            >
+              <TableCell className={valueCell}>
+                <time dateTime={deposit.paidOn}>{formatCalendarDay(deposit.paidOn)}</time>
+              </TableCell>
+              <TableCell className={valueCell}>
+                <CustomerLink customerId={deposit.customerId} name={deposit.customerName} />
+              </TableCell>
+              <TableCell className={valueCell}>
+                {todayDepositCategoryLabels[deposit.category]}
+              </TableCell>
+              <TableCell className={amountCell}>{formatWon(deposit.amount)}</TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {deposits.map((deposit) => (
-              <TableRow
-                key={deposit.id}
-                className="cursor-pointer"
-                onClick={(event) => {
-                  openCustomer(navigate, deposit.customerId, event);
-                }}
-              >
-                <TableCell className={valueCell}>
-                  <time dateTime={deposit.paidOn}>{formatCalendarDay(deposit.paidOn)}</time>
-                </TableCell>
-                <TableCell className={valueCell}>
-                  <CustomerLink customerId={deposit.customerId} name={deposit.customerName} />
-                </TableCell>
-                <TableCell className={valueCell}>
-                  {todayDepositCategoryLabels[deposit.category]}
-                </TableCell>
-                <TableCell className={amountCell}>{formatWon(deposit.amount)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+          ))}
+        </TableBody>
+      </Table>
     );
   }
 
   return (
-    <Card className="h-full gap-0 py-0 shadow-none">
-      <CardHeader className="px-5 pt-5 pb-1">
+    <Card className={workListCard}>
+      <CardHeader className="shrink-0 px-5 pt-5 pb-1">
         <CardTitle>기간 내 입금내역</CardTitle>
       </CardHeader>
-      <CardContent className="px-0 pb-2">{body}</CardContent>
+      <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pb-2">{body}</CardContent>
     </Card>
   );
 }
@@ -224,24 +223,24 @@ function ScheduleList({
   upcomingPayments: TodayUpcomingPayment[];
 }): JSX.Element {
   return (
-    <Card className="h-full gap-0 py-0 shadow-none">
-      <CardHeader className="px-5 pt-5 pb-1">
+    <Card className={workListCard}>
+      <CardHeader className="shrink-0 px-5 pt-5 pb-1">
         <CardTitle>미납/납부 예정</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 px-0 pb-4">
-        <div className="grid gap-2">
+      <CardContent className="grid min-h-0 flex-1 grid-rows-2 gap-4 px-0 pb-4">
+        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
           <div className="px-5">
             <Badge variant="destructive">미납</Badge>
           </div>
-          <div className="max-h-72 overflow-auto">
+          <div className="min-h-0 overflow-y-auto">
             <OverdueTable customers={overdueCustomers} />
           </div>
         </div>
-        <div className="grid gap-2">
+        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
           <div className="px-5">
             <Badge variant="secondary">납부예정</Badge>
           </div>
-          <div className="max-h-72 overflow-auto">
+          <div className="min-h-0 overflow-y-auto">
             <UpcomingTable payments={upcomingPayments} />
           </div>
         </div>

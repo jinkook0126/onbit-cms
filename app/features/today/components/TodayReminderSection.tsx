@@ -1,5 +1,3 @@
-import { Link } from 'react-router';
-
 import { Badge } from '~/components/ui/badge';
 import { Skeleton } from '~/components/ui/skeleton';
 import {
@@ -17,19 +15,29 @@ import { cn } from '~/lib/utils';
 
 import type { JSX } from 'react';
 
-function customerPath(customerId: string): string {
-  return `/customers?customer=${customerId}`;
-}
+type TodayReminderSectionProps = {
+  onOpenCustomer: (customerId: string) => void;
+};
 
 function formatContactDate(value: string): string {
-  const [year, month, day] = value.split('-');
+  const separator = value.indexOf('T');
+  const datePart = separator === -1 ? value : value.slice(0, separator);
+  const [year, month, day] = datePart.split('-');
   if (!year || !month || !day) {
     return value;
   }
-  return `${year}. ${month}. ${day}.`;
+  const dateLabel = `${year}. ${month}. ${day}.`;
+  if (separator === -1) {
+    return dateLabel;
+  }
+  const timePart = value.slice(separator + 1);
+  if (timePart === '') {
+    return dateLabel;
+  }
+  return `${dateLabel} ${timePart}`;
 }
 
-export function TodayReminderSection(): JSX.Element {
+export function TodayReminderSection({ onOpenCustomer }: TodayReminderSectionProps): JSX.Element {
   const reminders = useTodayReminders();
 
   let body: JSX.Element;
@@ -60,14 +68,24 @@ export function TodayReminderSection(): JSX.Element {
           </TableHeader>
           <TableBody>
             {reminders.data.reminders.map((reminder) => (
-              <TableRow key={reminder.id} className="cursor-pointer">
+              <TableRow
+                key={reminder.id}
+                className="cursor-pointer"
+                onClick={() => {
+                  onOpenCustomer(reminder.id);
+                }}
+              >
                 <TableCell>
-                  <Link
-                    to={customerPath(reminder.id)}
+                  <button
+                    type="button"
                     className={cn('rounded-sm text-foreground', focusRing)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenCustomer(reminder.id);
+                    }}
                   >
                     {reminder.name}
-                  </Link>
+                  </button>
                 </TableCell>
                 <TableCell className="max-w-md whitespace-normal">
                   {reminder.latestConsultation ? (

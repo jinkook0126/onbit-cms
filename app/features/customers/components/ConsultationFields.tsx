@@ -60,6 +60,7 @@ export function ConsultationFields({
         invalid={Boolean(fieldErrors?.nextContactOn)}
         message={fieldErrors?.nextContactOn}
         disabled={disabled}
+        withTime
         onChange={onNextContactChange}
       />
     </>

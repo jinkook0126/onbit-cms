@@ -1,6 +1,5 @@
 /** 로그인 후 본문. 헤더 아래를 옅은 회색으로 채운다. */
-export const pageCanvas =
-  'flex min-h-[calc(100dvh-3.5rem)] flex-1 flex-col bg-muted px-6 py-6 xl:px-8';
+export const pageCanvas = 'flex flex-1 flex-col bg-muted px-6 py-6 xl:px-8';
 
 /** 회색 본문 위의 흰 카드. */
 export const pageSurface = 'rounded-xl bg-card ring-1 ring-border';

@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { Button } from '~/components/ui/button';
 import { Calendar } from '~/components/ui/calendar';
+import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover';
 import { fieldLabel } from '~/lib/styles';
@@ -19,6 +20,7 @@ type CustomerNextContactFieldProps = {
   message?: string;
   disabled: boolean;
   clearable?: boolean;
+  withTime?: boolean;
   onChange: (value: string) => void;
 };
 
@@ -49,6 +51,28 @@ function formatContactLabel(date: Date): string {
   return `${date.getFullYear()}. ${month}. ${day}.`;
 }
 
+function readSchedule(value: string): { date: string; time: string } {
+  const [date = '', time = ''] = value.split('T');
+  return { date, time };
+}
+
+function normalizeTime(value: string): string {
+  if (/^\d{2}:\d{2}:\d{2}$/.test(value)) {
+    return value.slice(0, 5);
+  }
+  return value;
+}
+
+function joinSchedule(date: string, time: string): string {
+  if (date === '') {
+    return '';
+  }
+  if (time === '') {
+    return date;
+  }
+  return `${date}T${time}`;
+}
+
 export function CustomerNextContactField({
   id = 'customer-next-contact',
   label = '다음 상담일',
@@ -57,18 +81,22 @@ export function CustomerNextContactField({
   message,
   disabled,
   clearable = true,
+  withTime = false,
   onChange,
 }: CustomerNextContactFieldProps): JSX.Element {
   const [open, setOpen] = useState(false);
-  const selected = parseContactDate(value);
+  const schedule = readSchedule(value);
+  const selected = parseContactDate(schedule.date);
   const errorId = `${id}-error`;
+  const timeId = `${id}-time`;
 
   function selectDate(date: Date | undefined): void {
     if (!date) {
       onChange('');
       return;
     }
-    onChange(formatContactDate(date));
+    const nextDate = formatContactDate(date);
+    onChange(withTime ? joinSchedule(nextDate, schedule.time) : nextDate);
     setOpen(false);
   }
 
@@ -82,35 +110,54 @@ export function CustomerNextContactField({
       <Label htmlFor={id} className={fieldLabel}>
         {label}
       </Label>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            id={id}
-            variant="outline"
-            disabled={disabled}
+      <div className={withTime ? 'flex items-center gap-2' : undefined}>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              id={id}
+              variant="outline"
+              disabled={disabled}
+              aria-invalid={invalid ? true : undefined}
+              aria-describedby={message ? errorId : undefined}
+              className={cn(
+                'h-9 justify-start px-3 font-normal',
+                withTime ? 'min-w-0 flex-1' : 'w-full',
+                schedule.date === '' && 'text-muted-foreground',
+              )}
+            >
+              <CalendarIcon />
+              {selected ? formatContactLabel(selected) : '날짜를 선택하세요'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="z-[60] w-auto p-0">
+            <Calendar mode="single" locale={ko} selected={selected} onSelect={selectDate} />
+            {!clearable || value === '' ? null : (
+              <div className="border-t border-border p-2">
+                <Button type="button" variant="ghost" className="w-full" onClick={clearDate}>
+                  날짜 지우기
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+        {withTime ? (
+          <Input
+            id={timeId}
+            type="time"
+            step={60}
+            value={schedule.time}
+            disabled={disabled || schedule.date === ''}
+            aria-label="다음 상담 시간"
             aria-invalid={invalid ? true : undefined}
             aria-describedby={message ? errorId : undefined}
-            className={cn(
-              'h-9 w-full justify-start px-3 font-normal',
-              value === '' && 'text-muted-foreground',
-            )}
-          >
-            <CalendarIcon />
-            {selected ? formatContactLabel(selected) : '날짜를 선택하세요'}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="z-[60] w-auto p-0">
-          <Calendar mode="single" locale={ko} selected={selected} onSelect={selectDate} />
-          {!clearable || value === '' ? null : (
-            <div className="border-t border-border p-2">
-              <Button type="button" variant="ghost" className="w-full" onClick={clearDate}>
-                날짜 지우기
-              </Button>
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
+            className="w-32 shrink-0"
+            onChange={(event) => {
+              onChange(joinSchedule(schedule.date, normalizeTime(event.currentTarget.value)));
+            }}
+          />
+        ) : null}
+      </div>
       {message ? (
         <p id={errorId} className="text-sm text-destructive">
           {message}

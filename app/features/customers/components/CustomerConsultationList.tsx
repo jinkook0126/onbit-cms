@@ -25,6 +25,19 @@ function formatCalendarDay(value: string): string {
   return `${year}. ${month}. ${day}.`;
 }
 
+function formatNextContact(value: string): string {
+  const separator = value.indexOf('T');
+  const dateLabel = formatCalendarDay(separator === -1 ? value : value.slice(0, separator));
+  if (separator === -1) {
+    return dateLabel;
+  }
+  const timePart = value.slice(separator + 1);
+  if (timePart === '') {
+    return dateLabel;
+  }
+  return `${dateLabel} ${timePart}`;
+}
+
 export function formatConsultationCreatedAt(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -47,7 +60,7 @@ function ConsultationCard({
   onEdit: (consultation: ConsultationListItem) => void;
 }): JSX.Element {
   const nextContact = consultation.nextContactOn
-    ? formatCalendarDay(consultation.nextContactOn)
+    ? formatNextContact(consultation.nextContactOn)
     : missingNextContact;
   const consultedOn = formatConsultationCreatedAt(consultation.createdAt);
 

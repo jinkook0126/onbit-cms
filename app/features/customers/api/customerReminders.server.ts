@@ -1,5 +1,6 @@
 import {
   formatContactDate,
+  formatNextContactSchedule,
   parseContactDate,
   seoulToday,
 } from '~/features/customers/api/customerDates.server';
@@ -64,10 +65,11 @@ export async function readCustomerReminders(
         id: true,
         name: true,
         nextContactOn: true,
+        nextContactTime: true,
         consultations: {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 1,
-          select: { content: true, nextContactOn: true },
+          select: { content: true, nextContactOn: true, nextContactTime: true },
         },
       },
     });
@@ -75,13 +77,14 @@ export async function readCustomerReminders(
     for (const row of rows) {
       const latest = row.consultations.at(0);
       const nextContactOn = latest ? latest.nextContactOn : row.nextContactOn;
+      const nextContactTime = latest ? latest.nextContactTime : row.nextContactTime;
       if (!isWithinWindow(nextContactOn, today, end)) {
         continue;
       }
       reminders.push({
         id: row.id,
         name: row.name,
-        nextContactOn: formatContactDate(nextContactOn),
+        nextContactOn: formatNextContactSchedule(nextContactOn, nextContactTime),
         latestConsultation: latest?.content ?? null,
       });
     }

@@ -20,11 +20,21 @@ type CustomerReminderSectionProps = {
 };
 
 function formatContactDate(value: string): string {
-  const [year, month, day] = value.split('-');
+  const separator = value.indexOf('T');
+  const datePart = separator === -1 ? value : value.slice(0, separator);
+  const [year, month, day] = datePart.split('-');
   if (!year || !month || !day) {
     return value;
   }
-  return `${year}. ${month}. ${day}.`;
+  const dateLabel = `${year}. ${month}. ${day}.`;
+  if (separator === -1) {
+    return dateLabel;
+  }
+  const timePart = value.slice(separator + 1);
+  if (timePart === '') {
+    return dateLabel;
+  }
+  return `${dateLabel} ${timePart}`;
 }
 
 export function CustomerReminderSection({

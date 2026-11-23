@@ -7,6 +7,7 @@ import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { MAX_CUSTOMER_KEYWORD_LENGTH } from '~/features/customers/type';
 import { ReceivableDaySchedule } from '~/features/receivables/components/ReceivableDaySchedule';
+import { ReceivableStatusBadge } from '~/features/receivables/components/ReceivableStatusBadge';
 import { useReceivableCalendar } from '~/features/receivables/hooks/useReceivableCalendar';
 import { readQueryError } from '~/lib/formError';
 import { formatWon } from '~/lib/money';
@@ -217,6 +218,7 @@ export function ReceivableCalendarPanel(): JSX.Element {
                 const current = isSameDay(date, today);
                 const active = selected ? isSameDay(date, selected) : false;
                 const summary = days.get(cell.key);
+                const overdue = summary?.overdue === true;
                 const dateLabel = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
                 return (
                   <button
@@ -225,7 +227,7 @@ export function ReceivableCalendarPanel(): JSX.Element {
                     aria-pressed={active}
                     aria-label={
                       summary
-                        ? `${dateLabel}, ${formatWon(summary.totalAmount)}, ${calendarPeopleLabel(summary)}`
+                        ? `${dateLabel}${overdue ? ', 연체' : ''}, ${formatWon(summary.totalAmount)}, ${calendarPeopleLabel(summary)}`
                         : dateLabel
                     }
                     className={cn(
@@ -238,13 +240,16 @@ export function ReceivableCalendarPanel(): JSX.Element {
                       selectDate(date);
                     }}
                   >
-                    <span
-                      className={cn(
-                        'text-xs',
-                        current ? 'font-medium text-primary' : 'text-muted-foreground',
-                      )}
-                    >
-                      {current ? `${date.getDate()} · 오늘` : date.getDate()}
+                    <span className="flex w-full items-center justify-between gap-1">
+                      <span
+                        className={cn(
+                          'text-xs',
+                          current ? 'font-medium text-primary' : 'text-muted-foreground',
+                        )}
+                      >
+                        {current ? `${date.getDate()} · 오늘` : date.getDate()}
+                      </span>
+                      {overdue ? <ReceivableStatusBadge status="OVERDUE" /> : null}
                     </span>
                     {summary ? (
                       <span className="mt-2 grid w-full min-w-0 gap-0.5 rounded-md bg-muted px-1.5 py-1">

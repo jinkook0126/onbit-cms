@@ -181,6 +181,8 @@ model Customer {
   assigneeId       String?            @map("assignee_id") @db.Uuid
   /// 다음 연락일. 아직 없으면 NULL이다.
   nextContactOn    DateTime?          @map("next_contact_on") @db.Date
+  /// 다음 연락 시각. `HH:mm`. 날짜만 있는 예전 일정은 NULL이다.
+  nextContactTime  String?            @map("next_contact_time") @db.VarChar(5)
   /// DB 최초 처리일. 등록할 때 비우면 NULL이다.
   firstProcessedOn DateTime?          @map("first_processed_on") @db.Date
   /// 수임 전에 고른 사건 유형. 수임 후에는 사건의 유형과 같게 맞춘다.
@@ -206,7 +208,9 @@ model Consultation {
   /// 상담 내용.
   content       String
   /// 다음 연락일. 아직 없으면 NULL이다.
-  nextContactOn DateTime? @map("next_contact_on") @db.Date
+  nextContactOn   DateTime? @map("next_contact_on") @db.Date
+  /// 다음 연락 시각. `HH:mm`. 날짜만 있는 예전 일정은 NULL이다.
+  nextContactTime String?   @map("next_contact_time") @db.VarChar(5)
   /// 이 상담 이력을 만든 사용자. 예전 행은 NULL이다.
   actorId       String?   @map("actor_id") @db.Uuid
   /// 이 상담 이력을 마지막으로 고친 사용자. 한 번도 고치지 않았으면 NULL이다.

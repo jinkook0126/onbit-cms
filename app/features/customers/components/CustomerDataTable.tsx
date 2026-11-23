@@ -74,7 +74,8 @@ function UnassignedBadge(): JSX.Element {
 }
 
 function formatContactDate(value: string): string {
-  const [year, month, day] = value.split('-');
+  const datePart = value.split('T')[0] ?? value;
+  const [year, month, day] = datePart.split('-');
   if (!year || !month || !day) {
     return value;
   }

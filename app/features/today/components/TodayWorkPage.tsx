@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router';
 
 import { Card, CardHeader } from '~/components/ui/card';
 import { Skeleton } from '~/components/ui/skeleton';
+import { CustomerDetailDialog } from '~/features/customers/components/CustomerDetailDialog';
 import { TodayPeriodForm } from '~/features/today/components/TodayPeriodForm';
 import { TodayReminderSection } from '~/features/today/components/TodayReminderSection';
 import { TodayWorkLists } from '~/features/today/components/TodayWorkLists';
@@ -104,6 +105,7 @@ function SummarySkeleton(): JSX.Element {
 export function TodayWorkPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
   const period = readPeriod(searchParams);
+  const customerId = searchParams.get('customer') ?? '';
   const work = useTodayWork(period.from, period.to, period.valid);
 
   function searchPeriod(from: string, to: string): void {
@@ -111,6 +113,18 @@ export function TodayWorkPage(): JSX.Element {
     next.set('from', from);
     next.set('to', to);
     setSearchParams(next, { replace: true, preventScrollReset: true });
+  }
+
+  function openCustomer(nextCustomerId: string): void {
+    const next = new URLSearchParams(searchParams);
+    next.set('customer', nextCustomerId);
+    setSearchParams(next);
+  }
+
+  function closeCustomer(): void {
+    const next = new URLSearchParams(searchParams);
+    next.delete('customer');
+    setSearchParams(next, { replace: true });
   }
 
   let summary: JSX.Element;
@@ -179,7 +193,8 @@ export function TodayWorkPage(): JSX.Element {
         />
       </section>
       {summary}
-      <TodayReminderSection />
+      <TodayReminderSection onOpenCustomer={openCustomer} />
+      <CustomerDetailDialog customerId={customerId} onClose={closeCustomer} />
     </div>
   );
 }

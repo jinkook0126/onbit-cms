@@ -42,6 +42,7 @@ export function CustomerConsultationForm({
         invalid={Boolean(fieldErrors?.nextContactOn)}
         message={fieldErrors?.nextContactOn}
         disabled={isSubmitting}
+        withTime
         onChange={changeNextContactOn}
       />
       <div className="grid gap-2">

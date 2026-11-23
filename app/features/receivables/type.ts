@@ -146,6 +146,7 @@ export type ReceivableCalendarDay = {
   totalAmount: number;
   customerName: string;
   extraCount: number;
+  overdue: boolean;
 };
 
 export type ReceivableCalendarResponse = {
@@ -300,7 +301,8 @@ function isReceivableCalendarDay(value: unknown): value is ReceivableCalendarDay
     isCount(value.totalAmount) &&
     typeof value.customerName === 'string' &&
     value.customerName.length > 0 &&
-    isCount(value.extraCount)
+    isCount(value.extraCount) &&
+    typeof value.overdue === 'boolean'
   );
 }
 

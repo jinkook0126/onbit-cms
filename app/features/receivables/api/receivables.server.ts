@@ -363,6 +363,7 @@ export async function readReceivableCalendar(
       select: {
         promisedOn: true,
         scheduledAmount: true,
+        receivedAmount: true,
         customerCase: {
           select: {
             customer: { select: { id: true, name: true } },
@@ -370,16 +371,25 @@ export async function readReceivableCalendar(
         },
       },
     });
-    const peopleByDate = new Map<string, Map<string, { name: string; amount: number }>>();
+    const today = seoulToday();
+    const peopleByDate = new Map<
+      string,
+      Map<string, { name: string; amount: number; overdue: boolean }>
+    >();
     for (const row of rows) {
       const date = formatPromisedOn(row.promisedOn);
       const customer = row.customerCase.customer;
-      const people = peopleByDate.get(date) ?? new Map<string, { name: string; amount: number }>();
+      const remainingAmount = Math.max(row.scheduledAmount - row.receivedAmount, 0);
+      const overdue = receivableInstallmentStatus(date, remainingAmount, today) === 'OVERDUE';
+      const people =
+        peopleByDate.get(date) ??
+        new Map<string, { name: string; amount: number; overdue: boolean }>();
       const current = people.get(customer.id);
       if (current) {
         current.amount += row.scheduledAmount;
+        current.overdue = current.overdue || overdue;
       } else {
-        people.set(customer.id, { name: customer.name, amount: row.scheduledAmount });
+        people.set(customer.id, { name: customer.name, amount: row.scheduledAmount, overdue });
       }
       peopleByDate.set(date, people);
     }
@@ -402,6 +412,7 @@ export async function readReceivableCalendar(
         totalAmount: list.reduce((sum, person) => sum + person.amount, 0),
         customerName: first.name,
         extraCount: list.length - 1,
+        overdue: list.some((person) => person.overdue),
       });
     }
     return { result: { status: 'ok', days }, headers };

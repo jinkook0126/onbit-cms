@@ -1,4 +1,7 @@
-import { formatContactDate, parseContactDate } from '~/features/customers/api/customerDates.server';
+import {
+  formatNextContactSchedule,
+  parseNextContactSchedule,
+} from '~/features/customers/api/customerDates.server';
 import {
   readAccessibleCustomer,
   resolveCustomerActor,
@@ -16,7 +19,8 @@ import type { Prisma } from '../../../../generated/prisma/client';
 
 const CONTENT_REQUIRED_MESSAGE = '상담 내용을 입력하세요.';
 const CONTENT_TOO_LONG_MESSAGE = `상담 내용은 ${MAX_CONSULTATION_CONTENT_LENGTH}자 이하여야 합니다.`;
-const NEXT_SCHEDULE_INVALID_MESSAGE = '다음 상담일정은 올바른 날짜로 입력하세요.';
+const NEXT_SCHEDULE_INVALID_MESSAGE = '다음 상담일정은 올바른 날짜와 시간으로 입력하세요.';
+const NEXT_SCHEDULE_TIME_MESSAGE = '다음 상담 시간을 입력하세요.';
 
 export type ConsultationListResult =
   | { status: 'ok'; consultations: ConsultationListItem[] }
@@ -34,7 +38,7 @@ export type ConsultationCreateResult =
   | { status: 'failed' };
 
 type ConsultationInput =
-  | { ok: true; content: string; nextContactOn: Date | null }
+  | { ok: true; content: string; nextContactOn: Date | null; nextContactTime: string | null }
   | { ok: false; fieldErrors: ConsultationCreateFieldErrors };
 
 function validateConsultation(
@@ -48,8 +52,13 @@ function validateConsultation(
   } else if (trimmed.length > MAX_CONSULTATION_CONTENT_LENGTH) {
     fieldErrors.content = CONTENT_TOO_LONG_MESSAGE;
   }
-  if (nextContactOn !== null && parseContactDate(nextContactOn) === null) {
-    fieldErrors.nextContactOn = NEXT_SCHEDULE_INVALID_MESSAGE;
+  if (nextContactOn !== null) {
+    const schedule = parseNextContactSchedule(nextContactOn);
+    if (schedule === null) {
+      fieldErrors.nextContactOn = NEXT_SCHEDULE_INVALID_MESSAGE;
+    } else if (schedule === 'date-only') {
+      fieldErrors.nextContactOn = NEXT_SCHEDULE_TIME_MESSAGE;
+    }
   }
   return fieldErrors;
 }
@@ -59,14 +68,25 @@ function readConsultationInput(content: string, nextContactOn: string | null): C
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, fieldErrors };
   }
-  const contactDate = nextContactOn === null ? null : parseContactDate(nextContactOn);
-  if (nextContactOn !== null && contactDate === null) {
+  if (nextContactOn === null) {
+    return { ok: true, content: content.trim(), nextContactOn: null, nextContactTime: null };
+  }
+  const schedule = parseNextContactSchedule(nextContactOn);
+  if (schedule === null || schedule === 'date-only') {
     return {
       ok: false,
-      fieldErrors: { nextContactOn: NEXT_SCHEDULE_INVALID_MESSAGE },
+      fieldErrors: {
+        nextContactOn:
+          schedule === 'date-only' ? NEXT_SCHEDULE_TIME_MESSAGE : NEXT_SCHEDULE_INVALID_MESSAGE,
+      },
     };
   }
-  return { ok: true, content: content.trim(), nextContactOn: contactDate };
+  return {
+    ok: true,
+    content: content.trim(),
+    nextContactOn: schedule.date,
+    nextContactTime: schedule.time,
+  };
 }
 
 export async function readConsultations(
@@ -85,7 +105,13 @@ export async function readConsultations(
     }
     const rows = await prisma.consultation.findMany({
       where: { customerId: customer.id },
-      select: { id: true, content: true, nextContactOn: true, createdAt: true },
+      select: {
+        id: true,
+        content: true,
+        nextContactOn: true,
+        nextContactTime: true,
+        createdAt: true,
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
     return {
@@ -94,7 +120,9 @@ export async function readConsultations(
         consultations: rows.map((row) => ({
           id: row.id,
           content: row.content,
-          nextContactOn: row.nextContactOn ? formatContactDate(row.nextContactOn) : null,
+          nextContactOn: row.nextContactOn
+            ? formatNextContactSchedule(row.nextContactOn, row.nextContactTime)
+            : null,
           createdAt: row.createdAt.toISOString(),
         })),
       },
@@ -113,14 +141,17 @@ export async function syncLatestNextContact(
   const latest = await tx.consultation.findFirst({
     where: { customerId },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    select: { nextContactOn: true },
+    select: { nextContactOn: true, nextContactTime: true },
   });
   if (!latest) {
     return;
   }
   await tx.customer.update({
     where: { id: customerId },
-    data: { nextContactOn: latest.nextContactOn },
+    data: {
+      nextContactOn: latest.nextContactOn,
+      nextContactTime: latest.nextContactTime,
+    },
   });
 }
 
@@ -151,6 +182,7 @@ export async function createConsultation(
           customerId: customer.id,
           content: input.content,
           nextContactOn: input.nextContactOn,
+          nextContactTime: input.nextContactTime,
           actorId: actor.userId,
         },
         select: { id: true },
@@ -204,6 +236,7 @@ export async function updateConsultation(
         data: {
           content: input.content,
           nextContactOn: input.nextContactOn,
+          nextContactTime: input.nextContactTime,
           updatedById: actor.userId,
         },
       });
