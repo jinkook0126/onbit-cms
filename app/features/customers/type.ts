@@ -131,6 +131,7 @@ export type CustomerListItem = {
   firstProcessedOn: string | null;
   contractedOn: string | null;
   latestConsultation: string | null;
+  favorited: boolean;
 };
 
 export type CustomerDetail = {
@@ -167,10 +168,24 @@ export type CustomerListResponse = {
   total: number;
 };
 
+export type CustomerListView = 'all' | 'favorites';
+export type CustomerSortField = 'registered' | 'contracted';
+export type CustomerSortDirection = 'asc' | 'desc';
+
+export type CustomerListSort = {
+  field: CustomerSortField;
+  direction: CustomerSortDirection;
+};
+
 export type CustomerListParams = {
   field: CustomerSearchField;
   keyword: string;
   status: ConsultationStatus | null;
+  source: InflowSource | null;
+  from: string;
+  to: string;
+  sort: CustomerListSort;
+  view: CustomerListView;
   page: number;
 };
 
@@ -304,7 +319,8 @@ function isCustomerListItem(value: unknown): value is CustomerListItem {
     isNullableString(value.nextContactOn) &&
     isNullableString(value.firstProcessedOn) &&
     isNullableString(value.contractedOn) &&
-    isNullableString(value.latestConsultation)
+    isNullableString(value.latestConsultation) &&
+    typeof value.favorited === 'boolean'
   );
 }
 
@@ -990,6 +1006,103 @@ export function parseCustomerSearchField(value: string | null): CustomerSearchFi
     return 'name';
   }
   if (isCustomerSearchField(value)) {
+    return value;
+  }
+  return null;
+}
+
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const [yearText, monthText, dayText] = value.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}
+
+export function parseCustomerListView(value: string | null): CustomerListView | null {
+  if (value === null || value === '' || value === 'all') {
+    return 'all';
+  }
+  if (value === 'favorites') {
+    return 'favorites';
+  }
+  return null;
+}
+
+export type CustomerFavoriteSubmission = {
+  favorited: boolean;
+};
+
+export function isCustomerFavoriteSubmission(value: unknown): value is CustomerFavoriteSubmission {
+  return isRecord(value) && typeof value.favorited === 'boolean';
+}
+
+export type CustomerFavoriteResponse = {
+  favorited: boolean;
+};
+
+export function isCustomerFavoriteResponse(value: unknown): value is CustomerFavoriteResponse {
+  return isRecord(value) && typeof value.favorited === 'boolean';
+}
+
+export function parseCustomerSortField(value: string | null): CustomerSortField | null {
+  if (value === null || value === '' || value === 'registered') {
+    return 'registered';
+  }
+  if (value === 'contracted') {
+    return 'contracted';
+  }
+  return null;
+}
+
+export function parseCustomerSortDirection(value: string | null): CustomerSortDirection | null {
+  if (value === null || value === '' || value === 'desc') {
+    return 'desc';
+  }
+  if (value === 'asc') {
+    return 'asc';
+  }
+  return null;
+}
+
+export function parseCustomerDate(value: string | null): string | null {
+  if (value === null || value === '') {
+    return '';
+  }
+  if (!isCalendarDate(value)) {
+    return null;
+  }
+  return value;
+}
+
+export function seoulCalendarToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+export function seoulMonthStart(today = seoulCalendarToday()): string {
+  return `${today.slice(0, 7)}-01`;
+}
+
+export function isInflowSourceParam(value: string | null): boolean {
+  return value === null || value === 'all' || isInflowSource(value);
+}
+
+export function parseInflowSource(value: string | null): InflowSource | null {
+  if (value === null || value === 'all') {
+    return null;
+  }
+  if (isInflowSource(value)) {
     return value;
   }
   return null;

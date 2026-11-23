@@ -8,10 +8,12 @@ import type { ReceivableListParams, ReceivableListResponse } from '~/features/re
 
 export function useReceivableList(
   params: ReceivableListParams,
+  enabled = true,
 ): UseQueryResult<ReceivableListResponse> {
   return useQuery({
     queryKey: receivableQueryKeys.list(params),
     queryFn: ({ signal }) => requestReceivableList(params, signal),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }

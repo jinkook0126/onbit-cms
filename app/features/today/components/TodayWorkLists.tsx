@@ -10,19 +10,28 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
+import { caseTypeLabels, installmentScheduleLabel } from '~/features/customers/type';
+import { todayDepositCategoryLabels } from '~/features/today/type';
+import { formatWon } from '~/lib/money';
 import { focusRing } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX, MouseEvent } from 'react';
-import type { TodayContact } from '~/features/today/type';
+import type {
+  TodayDeposit,
+  TodayOverdueCustomer,
+  TodayUpcomingPayment,
+} from '~/features/today/type';
 
 type TodayWorkListsProps = {
-  contacts: TodayContact[];
+  deposits: TodayDeposit[];
+  overdueCustomers: TodayOverdueCustomer[];
+  upcomingPayments: TodayUpcomingPayment[];
 };
 
-const labelCell = 'h-auto px-5 py-3 text-left text-sm font-medium text-foreground';
-const nameCell = 'px-5 py-3.5 text-left align-top';
-const textCell = 'px-5 py-3.5 text-left align-top whitespace-normal break-words';
+const labelCell = 'h-auto px-4 py-3 text-left text-sm font-medium text-foreground';
+const valueCell = 'truncate px-4 py-3 text-left align-middle';
+const amountCell = 'px-4 py-3 text-right align-middle whitespace-nowrap tabular-nums';
 
 function customerPath(customerId: string): string {
   return `/customers?customer=${customerId}`;
@@ -47,30 +56,19 @@ export function CustomerLink({
   );
 }
 
-export function TodayEmptyState({ message }: { message: string }): JSX.Element {
-  return (
-    <div className="flex min-h-52 flex-1 items-center justify-center rounded-lg bg-muted px-6 py-10 text-center">
-      <p className="text-sm text-muted-foreground">{message}</p>
-    </div>
-  );
-}
-
-function TodayPanel({ title, children }: { title: string; children: JSX.Element }): JSX.Element {
-  return (
-    <Card className="h-full gap-0 py-0 shadow-none">
-      <CardHeader className="px-5 pt-5 pb-1">
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="px-0 pb-2">{children}</CardContent>
-    </Card>
-  );
-}
-
-function AssigneeName({ name }: { name: string | null }): JSX.Element {
-  if (!name) {
-    return <Badge variant="outline">미정</Badge>;
+function formatCalendarDay(value: string): string {
+  const [year, month, day] = value.split('-');
+  if (!year || !month || !day) {
+    return value;
   }
-  return <span className="block truncate">{name}</span>;
+  return `${year}. ${month}. ${day}.`;
+}
+
+function formatDday(dayOffset: number): string {
+  if (dayOffset === 0) {
+    return 'D-day';
+  }
+  return `D-${dayOffset}`;
 }
 
 function openCustomer(
@@ -84,64 +82,184 @@ function openCustomer(
   void navigate(customerPath(customerId));
 }
 
-function TodayContactCard({ contacts }: { contacts: TodayContact[] }): JSX.Element {
+function EmptyMessage({ message }: { message: string }): JSX.Element {
+  return <p className="px-5 py-8 text-center text-sm text-muted-foreground">{message}</p>;
+}
+
+function DepositList({ deposits }: { deposits: TodayDeposit[] }): JSX.Element {
   const navigate = useNavigate();
-  let body = (
-    <div className="px-5 pt-2 pb-5">
-      <TodayEmptyState message="오늘 연락할 고객이 없습니다." />
-    </div>
-  );
-  if (contacts.length > 0) {
+  let body = <EmptyMessage message="기간 내 입금 내역이 없습니다." />;
+  if (deposits.length > 0) {
     body = (
-      <Table className="table-fixed">
-        <caption className="sr-only">오늘 연락할 고객</caption>
-        <colgroup>
-          <col className="w-[26%]" />
-          <col className="w-[22%]" />
-          <col className="w-[52%]" />
-        </colgroup>
-        <TableHeader>
-          <TableRow className="border-border hover:bg-card">
-            <TableHead className={labelCell}>고객</TableHead>
-            <TableHead className={labelCell}>담당</TableHead>
-            <TableHead className={labelCell}>상담 내용</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {contacts.map((contact) => (
-            <TableRow
-              key={contact.customerId}
-              className="cursor-pointer border-border/70"
-              onClick={(event) => {
-                openCustomer(navigate, contact.customerId, event);
-              }}
-            >
-              <TableCell className={nameCell}>
-                <CustomerLink
-                  customerId={contact.customerId}
-                  name={contact.customerName}
-                  className="block truncate"
-                />
-              </TableCell>
-              <TableCell className={nameCell}>
-                <AssigneeName name={contact.assigneeName} />
-              </TableCell>
-              <TableCell className={textCell}>{contact.content}</TableCell>
+      <div className="max-h-96 overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border hover:bg-card">
+              <TableHead className={labelCell}>입금일</TableHead>
+              <TableHead className={labelCell}>고객이름</TableHead>
+              <TableHead className={labelCell}>구분</TableHead>
+              <TableHead className={cn(labelCell, 'text-right')}>입금액</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {deposits.map((deposit) => (
+              <TableRow
+                key={deposit.id}
+                className="cursor-pointer"
+                onClick={(event) => {
+                  openCustomer(navigate, deposit.customerId, event);
+                }}
+              >
+                <TableCell className={valueCell}>
+                  <time dateTime={deposit.paidOn}>{formatCalendarDay(deposit.paidOn)}</time>
+                </TableCell>
+                <TableCell className={valueCell}>
+                  <CustomerLink customerId={deposit.customerId} name={deposit.customerName} />
+                </TableCell>
+                <TableCell className={valueCell}>
+                  {todayDepositCategoryLabels[deposit.category]}
+                </TableCell>
+                <TableCell className={amountCell}>{formatWon(deposit.amount)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     );
   }
 
-  return <TodayPanel title="오늘 연락할 고객">{body}</TodayPanel>;
+  return (
+    <Card className="h-full gap-0 py-0 shadow-none">
+      <CardHeader className="px-5 pt-5 pb-1">
+        <CardTitle>기간 내 입금내역</CardTitle>
+      </CardHeader>
+      <CardContent className="px-0 pb-2">{body}</CardContent>
+    </Card>
+  );
 }
 
-export function TodayWorkLists({ contacts }: TodayWorkListsProps): JSX.Element {
+function OverdueTable({ customers }: { customers: TodayOverdueCustomer[] }): JSX.Element {
+  const navigate = useNavigate();
+  if (customers.length === 0) {
+    return <EmptyMessage message="미납 고객이 없습니다." />;
+  }
   return (
-    <section>
-      <h2 className="sr-only">오늘의 목록</h2>
-      <TodayContactCard contacts={contacts} />
+    <Table>
+      <TableHeader>
+        <TableRow className="border-border hover:bg-card">
+          <TableHead className={labelCell}>이름</TableHead>
+          <TableHead className={cn(labelCell, 'text-right')}>금액</TableHead>
+          <TableHead className={labelCell}>제도이름</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {customers.map((customer) => (
+          <TableRow
+            key={customer.customerId}
+            className="cursor-pointer"
+            onClick={(event) => {
+              openCustomer(navigate, customer.customerId, event);
+            }}
+          >
+            <TableCell className={valueCell}>
+              <CustomerLink customerId={customer.customerId} name={customer.customerName} />
+            </TableCell>
+            <TableCell className={cn(amountCell, 'text-destructive')}>
+              {formatWon(customer.amount)}
+            </TableCell>
+            <TableCell className={valueCell}>{caseTypeLabels[customer.caseType]}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function UpcomingTable({ payments }: { payments: TodayUpcomingPayment[] }): JSX.Element {
+  const navigate = useNavigate();
+  if (payments.length === 0) {
+    return <EmptyMessage message="납부 예정 고객이 없습니다." />;
+  }
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className="border-border hover:bg-card">
+          <TableHead className={labelCell}>이름</TableHead>
+          <TableHead className={cn(labelCell, 'text-right')}>금액</TableHead>
+          <TableHead className={labelCell}>납부예정일</TableHead>
+          <TableHead className={labelCell}>납부유형</TableHead>
+          <TableHead className={labelCell}>D-day</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {payments.map((payment) => (
+          <TableRow
+            key={payment.id}
+            className="cursor-pointer"
+            onClick={(event) => {
+              openCustomer(navigate, payment.customerId, event);
+            }}
+          >
+            <TableCell className={valueCell}>
+              <CustomerLink customerId={payment.customerId} name={payment.customerName} />
+            </TableCell>
+            <TableCell className={amountCell}>{formatWon(payment.amount)}</TableCell>
+            <TableCell className={valueCell}>
+              <time dateTime={payment.promisedOn}>{formatCalendarDay(payment.promisedOn)}</time>
+            </TableCell>
+            <TableCell className={valueCell}>{installmentScheduleLabel(payment)}</TableCell>
+            <TableCell className={valueCell}>{formatDday(payment.dayOffset)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function ScheduleList({
+  overdueCustomers,
+  upcomingPayments,
+}: {
+  overdueCustomers: TodayOverdueCustomer[];
+  upcomingPayments: TodayUpcomingPayment[];
+}): JSX.Element {
+  return (
+    <Card className="h-full gap-0 py-0 shadow-none">
+      <CardHeader className="px-5 pt-5 pb-1">
+        <CardTitle>미납/납부 예정</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 px-0 pb-4">
+        <div className="grid gap-2">
+          <div className="px-5">
+            <Badge variant="destructive">미납</Badge>
+          </div>
+          <div className="max-h-72 overflow-auto">
+            <OverdueTable customers={overdueCustomers} />
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <div className="px-5">
+            <Badge variant="secondary">납부예정</Badge>
+          </div>
+          <div className="max-h-72 overflow-auto">
+            <UpcomingTable payments={upcomingPayments} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function TodayWorkLists({
+  deposits,
+  overdueCustomers,
+  upcomingPayments,
+}: TodayWorkListsProps): JSX.Element {
+  return (
+    <section className="grid gap-5 lg:grid-cols-2">
+      <h2 className="sr-only">입금과 납부 일정</h2>
+      <DepositList deposits={deposits} />
+      <ScheduleList overdueCustomers={overdueCustomers} upcomingPayments={upcomingPayments} />
     </section>
   );
 }

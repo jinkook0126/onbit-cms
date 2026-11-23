@@ -3,7 +3,7 @@ import { formatContactDate, parseContactDate } from '~/features/customers/api/cu
 import { readTakenCustomerKeys } from '~/features/customers/api/customerIdentity.server';
 import {
   buildInstallmentDrafts,
-  readOrCreateInstallments,
+  readCustomerInstallments,
 } from '~/features/customers/api/customerInstallments.server';
 import {
   customerVisibilityWhere,
@@ -40,7 +40,10 @@ import type {
   CustomerListItem,
   CustomerRetainFieldErrors,
   CustomerRetainSubmission,
+  CustomerListView,
   CustomerSearchField,
+  CustomerSortDirection,
+  CustomerSortField,
   InflowSource,
 } from '~/features/customers/type';
 import type { Prisma } from '../../../../generated/prisma/client';
@@ -72,6 +75,12 @@ export type CustomerListQuery = {
   field: CustomerSearchField;
   keyword: string;
   status: ConsultationStatus | null;
+  source: InflowSource | null;
+  from: string;
+  to: string;
+  sortField: CustomerSortField;
+  sortDirection: CustomerSortDirection;
+  view: CustomerListView;
   page: number;
 };
 
@@ -81,6 +90,34 @@ function isConsultationStatus(value: string): value is ConsultationStatus {
 
 function isInflowSource(value: string): value is InflowSource {
   return inflowSources.some((source) => source === value);
+}
+
+function seoulDayStart(dateText: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText);
+  if (!match) {
+    return null;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const start = new Date(Date.UTC(year, month - 1, day, -9));
+  if (seoulCalendarDay(start) !== dateText) {
+    return null;
+  }
+  return start;
+}
+
+function registeredOnFilter(from: string, to: string): Prisma.DateTimeFilter | undefined {
+  const gte = from === '' ? null : seoulDayStart(from);
+  const endDay = to === '' ? null : seoulDayStart(to);
+  if (gte === null && endDay === null) {
+    return undefined;
+  }
+  const end = endDay === null ? null : new Date(endDay.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    ...(gte === null ? {} : { gte }),
+    ...(end === null ? {} : { lt: end }),
+  };
 }
 
 function keywordWhere(field: CustomerSearchField, keyword: string): Prisma.CustomerWhereInput {
@@ -110,6 +147,7 @@ function toCustomerListItem(customer: {
   assignee: { name: string } | null;
   customerCase: { caseType: string; contractedOn: Date } | null;
   consultations: { content: string; nextContactOn: Date | null }[];
+  favorites: { userId: string }[];
 }): CustomerListItem | null {
   if (!isInflowSource(customer.source) || !isConsultationStatus(customer.status)) {
     return null;
@@ -138,48 +176,149 @@ function toCustomerListItem(customer: {
       ? formatContactDate(customer.customerCase.contractedOn)
       : null,
     latestConsultation: latestConsultation ? latestConsultation.content : null,
+    favorited: customer.favorites.length > 0,
+  };
+}
+
+type CustomerSortKey = {
+  id: string;
+  createdAt: Date;
+  customerCase: { contractedOn: Date } | null;
+};
+
+function compareTimestamp(left: Date, right: Date, direction: CustomerSortDirection): number {
+  const delta = left.getTime() - right.getTime();
+  if (delta === 0) {
+    return 0;
+  }
+  return direction === 'asc' ? delta : -delta;
+}
+
+function compareOptionalDate(
+  left: Date | null,
+  right: Date | null,
+  direction: CustomerSortDirection,
+): number {
+  if (left === null && right === null) {
+    return 0;
+  }
+  if (left === null) {
+    return 1;
+  }
+  if (right === null) {
+    return -1;
+  }
+  return compareTimestamp(left, right, direction);
+}
+
+function compareCustomerSortKeys(
+  left: CustomerSortKey,
+  right: CustomerSortKey,
+  field: CustomerSortField,
+  direction: CustomerSortDirection,
+): number {
+  const registered = compareTimestamp(left.createdAt, right.createdAt, direction);
+  const contractedDirection = field === 'contracted' ? direction : 'desc';
+  const contracted = compareOptionalDate(
+    left.customerCase?.contractedOn ?? null,
+    right.customerCase?.contractedOn ?? null,
+    contractedDirection,
+  );
+  if (field === 'contracted') {
+    if (contracted !== 0) {
+      return contracted;
+    }
+    const registeredNewest = compareTimestamp(left.createdAt, right.createdAt, 'desc');
+    if (registeredNewest !== 0) {
+      return registeredNewest;
+    }
+  } else if (registered !== 0) {
+    return registered;
+  } else if (contracted !== 0) {
+    return contracted;
+  }
+  return left.id.localeCompare(right.id);
+}
+
+const customerListSelect = {
+  id: true,
+  name: true,
+  phone: true,
+  source: true,
+  status: true,
+  caseType: true,
+  createdAt: true,
+  nextContactOn: true,
+  firstProcessedOn: true,
+  assignee: { select: { name: true } },
+  customerCase: { select: { caseType: true, contractedOn: true } },
+  consultations: {
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+    select: { content: true, nextContactOn: true },
+  },
+} satisfies Prisma.CustomerSelect;
+
+function customerListSelectFor(userId: string): Prisma.CustomerSelect {
+  return {
+    ...customerListSelect,
+    favorites: {
+      where: { userId },
+      select: { userId: true },
+      take: 1,
+    },
   };
 }
 
 async function readScopedCustomers(
   visibility: Prisma.CustomerWhereInput,
   query: CustomerListQuery,
+  userId: string,
 ): Promise<{ customers: CustomerListItem[]; total: number }> {
   const keyword = query.keyword.trim().slice(0, MAX_CUSTOMER_KEYWORD_LENGTH);
+  const createdAt = registeredOnFilter(query.from, query.to);
   const where: Prisma.CustomerWhereInput = {
     ...visibility,
     ...(query.status ? { status: query.status } : {}),
+    ...(query.source ? { source: query.source } : {}),
+    ...(createdAt === undefined ? {} : { createdAt }),
     ...(keyword ? keywordWhere(query.field, keyword) : {}),
+    ...(query.view === 'favorites' ? { favorites: { some: { userId } } } : {}),
   };
-  const [total, rows] = await prisma.$transaction([
-    prisma.customer.count({ where }),
-    prisma.customer.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        source: true,
-        status: true,
-        caseType: true,
-        createdAt: true,
-        nextContactOn: true,
-        firstProcessedOn: true,
-        assignee: { select: { name: true } },
-        customerCase: { select: { caseType: true, contractedOn: true } },
-        consultations: {
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          take: 1,
-          select: { content: true, nextContactOn: true },
-        },
-      },
-      orderBy: [{ createdAt: 'desc' }, { name: 'asc' }],
-      skip: (query.page - 1) * CUSTOMER_PAGE_SIZE,
-      take: CUSTOMER_PAGE_SIZE,
-    }),
-  ]);
+  const keys = await prisma.customer.findMany({
+    where,
+    select: {
+      id: true,
+      createdAt: true,
+      customerCase: { select: { contractedOn: true } },
+    },
+  });
+  const orderedIds = keys
+    .slice()
+    .sort((left, right) =>
+      compareCustomerSortKeys(left, right, query.sortField, query.sortDirection),
+    )
+    .map((key) => key.id);
+  const start = (query.page - 1) * CUSTOMER_PAGE_SIZE;
+  const pageIds = orderedIds.slice(start, start + CUSTOMER_PAGE_SIZE);
+  const rows =
+    pageIds.length === 0
+      ? []
+      : await prisma.customer.findMany({
+          where: { id: { in: pageIds } },
+          select: customerListSelectFor(userId),
+        });
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+  const orderedRows = [];
+  for (const id of pageIds) {
+    const row = rowsById.get(id);
+    if (row) {
+      orderedRows.push(row);
+    }
+  }
+  const total = orderedIds.length;
   const customers: CustomerListItem[] = [];
-  for (const row of rows) {
+  for (const row of orderedRows) {
     const item = toCustomerListItem(row);
     if (item) {
       customers.push(item);
@@ -206,7 +345,7 @@ export async function readCustomers(
       return { result: { status: 'not-found' }, headers };
     }
     const visibility = await customerVisibilityWhere(actor);
-    const scoped = await readScopedCustomers(visibility, query);
+    const scoped = await readScopedCustomers(visibility, query, actor.userId);
     return {
       result: {
         status: 'ok',
@@ -219,6 +358,49 @@ export async function readCustomers(
     };
   } catch (error) {
     console.error('상담 고객 목록을 불러오지 못했습니다.', errorCodeLabel(error));
+    return { result: { status: 'failed' }, headers };
+  }
+}
+
+export type CustomerFavoriteResult =
+  | { status: 'ok'; favorited: boolean }
+  | { status: 'anonymous' }
+  | { status: 'forbidden' }
+  | { status: 'not-found' }
+  | { status: 'failed' };
+
+export async function setCustomerFavorite(
+  request: Request,
+  customerId: string,
+  favorited: boolean,
+): Promise<{ result: CustomerFavoriteResult; headers: Headers }> {
+  const { actor, headers } = await resolveCustomerActor(request);
+  if (actor.status !== 'ok') {
+    return { result: actor, headers };
+  }
+  if (!isUuid(customerId)) {
+    return { result: { status: 'not-found' }, headers };
+  }
+
+  try {
+    const customer = await readAccessibleCustomer(actor, customerId);
+    if (!customer) {
+      return { result: { status: 'not-found' }, headers };
+    }
+    if (favorited) {
+      await prisma.customerFavorite.upsert({
+        where: { userId_customerId: { userId: actor.userId, customerId } },
+        create: { userId: actor.userId, customerId },
+        update: {},
+      });
+    } else {
+      await prisma.customerFavorite.deleteMany({
+        where: { userId: actor.userId, customerId },
+      });
+    }
+    return { result: { status: 'ok', favorited }, headers };
+  } catch (error) {
+    console.error('상담 고객 즐겨찾기를 바꾸지 못했습니다.', errorCodeLabel(error));
     return { result: { status: 'failed' }, headers };
   }
 }
@@ -252,8 +434,7 @@ const PROFILE_CASE_TYPE_REQUIRED_MESSAGE = '사건 유형을 선택하세요.';
 const PROFILE_CONTRACTED_ON_REQUIRED_MESSAGE = '수임날짜를 선택하세요.';
 const PROFILE_CONTRACTED_ON_INVALID_MESSAGE = '수임날짜를 다시 선택하세요.';
 const PROFILE_RETAINER_FEE_REQUIRED_MESSAGE = '총 수임료를 입력하세요.';
-const PROFILE_RETAINER_FEE_INVALID_MESSAGE =
-  '총 수임료는 0 이상 20억 원 이하의 정수로 입력하세요.';
+const PROFILE_RETAINER_FEE_INVALID_MESSAGE = '총 수임료는 0 이상 20억 원 이하의 정수로 입력하세요.';
 
 async function assigneeWhere(
   actor: Extract<CustomerActor, { status: 'ok' }>,
@@ -404,7 +585,10 @@ type ProfileDraft =
       retainerFee: number | null;
     };
 
-function readProfileDraft(submission: CustomerProfileSubmission, lockRetained: boolean): ProfileDraft {
+function readProfileDraft(
+  submission: CustomerProfileSubmission,
+  lockRetained: boolean,
+): ProfileDraft {
   const fieldErrors: CustomerProfileFieldErrors = {};
   const name = submission.name.trim();
   const phone = submission.phone.trim();
@@ -438,7 +622,10 @@ function readProfileDraft(submission: CustomerProfileSubmission, lockRetained: b
   } else if (lockRetained && submission.status !== 'RETAINED') {
     fieldErrors.status = PROFILE_STATUS_LOCKED_MESSAGE;
   }
-  if (submission.firstProcessedOn !== null && parseContactDate(submission.firstProcessedOn) === null) {
+  if (
+    submission.firstProcessedOn !== null &&
+    parseContactDate(submission.firstProcessedOn) === null
+  ) {
     fieldErrors.firstProcessedOn = FIRST_PROCESSED_INVALID_MESSAGE;
   }
 
@@ -523,26 +710,16 @@ async function createRetainedCase(
   actorId: string,
   input: { contractedOn: Date; caseType: CaseType; retainerFee: number },
 ): Promise<void> {
-  const retainInput = {
-    contractedOn: input.contractedOn,
-    retainerFee: input.retainerFee,
-    deposit: 0,
-    installmentCount: 1,
-    firstPaymentOn: input.contractedOn,
-  };
-  const customerCase = await tx.customerCase.create({
+  await tx.customerCase.create({
     data: {
       customerId,
       caseType: input.caseType,
-      ...retainInput,
+      contractedOn: input.contractedOn,
+      retainerFee: input.retainerFee,
+      deposit: 0,
+      installmentCount: 0,
+      firstPaymentOn: input.contractedOn,
     },
-    select: { id: true },
-  });
-  await tx.customerInstallment.createMany({
-    data: buildInstallmentDrafts(retainInput).map((draft) => ({
-      customerCaseId: customerCase.id,
-      ...draft,
-    })),
   });
   await tx.consultation.create({
     data: {
@@ -597,7 +774,12 @@ export async function createCustomer(
         },
         select: { id: true },
       });
-      if (draft.status === 'RETAINED' && draft.caseType && draft.contractedOn && draft.retainerFee !== null) {
+      if (
+        draft.status === 'RETAINED' &&
+        draft.caseType &&
+        draft.contractedOn &&
+        draft.retainerFee !== null
+      ) {
         await createRetainedCase(tx, created.id, actor.userId, {
           contractedOn: draft.contractedOn,
           caseType: draft.caseType,
@@ -696,7 +878,12 @@ export async function updateCustomerProfile(
         }
         return;
       }
-      if (draft.status === 'RETAINED' && draft.caseType && draft.contractedOn && draft.retainerFee !== null) {
+      if (
+        draft.status === 'RETAINED' &&
+        draft.caseType &&
+        draft.contractedOn &&
+        draft.retainerFee !== null
+      ) {
         await createRetainedCase(tx, customer.id, actor.userId, {
           contractedOn: draft.contractedOn,
           caseType: draft.caseType,
@@ -867,7 +1054,7 @@ export async function readCustomer(
         headers,
       };
     }
-    const installments = await readOrCreateInstallments(customer.id);
+    const installments = await readCustomerInstallments(customer.id);
     if (installments === null) {
       return { result: { status: 'failed' }, headers };
     }

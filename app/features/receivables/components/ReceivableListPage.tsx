@@ -6,12 +6,21 @@ import { ReceivableCalendarPanel } from '~/features/receivables/components/Recei
 import { ReceivableDataTable } from '~/features/receivables/components/ReceivableDataTable';
 import { ReceivableSearchForm } from '~/features/receivables/components/ReceivableSearchForm';
 import { useReceivableList } from '~/features/receivables/hooks/useReceivableList';
-import { parseReceivableSearchField } from '~/features/receivables/type';
+import {
+  parseReceivableDate,
+  parseReceivablePaymentFilter,
+  parseReceivableSearchField,
+  parseReceivableSort,
+  receivablePaymentFilterParam,
+  seoulCalendarToday,
+  seoulMonthStart,
+} from '~/features/receivables/type';
 import { readQueryError } from '~/lib/formError';
 import { pageAlert, pageSurface } from '~/lib/styles';
 
 import type { JSX } from 'react';
-import type { ReceivableSearchField } from '~/features/receivables/type';
+import type { ReceivableSearchValues } from '~/features/receivables/components/ReceivableSearchForm';
+import type { ReceivableListParams, ReceivableSort } from '~/features/receivables/type';
 
 function ReceivableListSkeleton(): JSX.Element {
   return (
@@ -32,30 +41,92 @@ function readPage(value: string | null): number {
   return page;
 }
 
+const emptyListParams: ReceivableListParams = {
+  field: 'name',
+  keyword: '',
+  from: '',
+  to: '',
+  status: 'ALL',
+  sort: 'desc',
+  page: 1,
+};
+
+function readListParams(
+  searchParams: URLSearchParams,
+): { valid: true; params: ReceivableListParams } | { valid: false } {
+  const field = parseReceivableSearchField(searchParams.get('field'));
+  const fromRaw = searchParams.get('from');
+  const toRaw = searchParams.get('to');
+  const useDefaultRange = fromRaw === null && toRaw === null;
+  const from = useDefaultRange ? seoulMonthStart() : parseReceivableDate(fromRaw);
+  const to = useDefaultRange ? seoulCalendarToday() : parseReceivableDate(toRaw);
+  const status = parseReceivablePaymentFilter(searchParams.get('status'));
+  const sort = parseReceivableSort(searchParams.get('sort'));
+  if (field === null || from === null || to === null || status === null || sort === null) {
+    return { valid: false };
+  }
+  if (from !== '' && to !== '' && from > to) {
+    return { valid: false };
+  }
+  return {
+    valid: true,
+    params: {
+      field,
+      keyword: searchParams.get('q') ?? '',
+      from,
+      to,
+      status,
+      sort,
+      page: readPage(searchParams.get('page')),
+    },
+  };
+}
+
 function ReceivableStatusPanel(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
-  const field = parseReceivableSearchField(searchParams.get('field')) ?? 'name';
-  const keyword = searchParams.get('q') ?? '';
-  const page = readPage(searchParams.get('page'));
-  const receivables = useReceivableList({ field, keyword, page });
+  const filters = readListParams(searchParams);
+  const listParams = filters.valid ? filters.params : emptyListParams;
+  const receivables = useReceivableList(listParams, filters.valid);
 
-  function replaceParams(update: (params: URLSearchParams) => void): void {
+  function replaceParams(
+    update: (params: URLSearchParams) => void,
+    preventScrollReset = false,
+  ): void {
     const next = new URLSearchParams(searchParams);
     update(next);
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: true, preventScrollReset });
   }
 
-  function searchReceivables(nextField: ReceivableSearchField, nextKeyword: string): void {
+  function searchReceivables(next: ReceivableSearchValues): void {
     replaceParams((params) => {
-      if (nextField === 'name') {
+      if (next.field === 'name') {
         params.delete('field');
       } else {
-        params.set('field', nextField);
+        params.set('field', next.field);
       }
-      if (nextKeyword === '') {
+      if (next.keyword === '') {
         params.delete('q');
       } else {
-        params.set('q', nextKeyword);
+        params.set('q', next.keyword);
+      }
+      params.set('from', next.from);
+      params.set('to', next.to);
+      const status = receivablePaymentFilterParam(next.status);
+      if (status === null) {
+        params.delete('status');
+      } else {
+        params.set('status', status);
+      }
+      params.delete('page');
+    });
+  }
+
+  function changeSort(nextSort: ReceivableSort): void {
+    replaceParams((params) => {
+      if (nextSort === 'desc') {
+        params.delete('sort');
+      } else {
+        params.set('sort', nextSort);
       }
       params.delete('page');
     });
@@ -68,11 +139,15 @@ function ReceivableStatusPanel(): JSX.Element {
         return;
       }
       params.set('page', String(nextPage));
-    });
+    }, true);
   }
 
-  const emptyMessage =
-    keyword.trim() === '' ? '등록된 분납 내역이 없습니다.' : '검색 결과가 없습니다.';
+  const hasFilter =
+    listParams.keyword.trim() !== '' ||
+    listParams.from !== '' ||
+    listParams.to !== '' ||
+    listParams.status !== 'ALL';
+  const emptyMessage = hasFilter ? '검색 결과가 없습니다.' : '등록된 분납 내역이 없습니다.';
 
   let listBody: JSX.Element;
   if (receivables.isPending) {
@@ -91,6 +166,8 @@ function ReceivableStatusPanel(): JSX.Element {
         page={receivables.data.page}
         isFetching={receivables.isFetching}
         emptyMessage={emptyMessage}
+        sort={listParams.sort}
+        onSortChange={changeSort}
         onPageChange={changePage}
       />
     );
@@ -101,15 +178,20 @@ function ReceivableStatusPanel(): JSX.Element {
       <section className={`${pageSurface} grid gap-5 p-5`}>
         <h2 className="text-sm font-medium text-foreground">검색 조건</h2>
         <ReceivableSearchForm
-          key={`${field}:${keyword}`}
-          field={field}
-          keyword={keyword}
+          key={`${listParams.field}:${listParams.keyword}:${listParams.from}:${listParams.to}:${listParams.status}`}
+          values={listParams}
           onSearch={searchReceivables}
         />
       </section>
       <section className="grid gap-3">
         <h2 className="sr-only">분납 목록</h2>
-        {listBody}
+        {filters.valid ? (
+          listBody
+        ) : (
+          <p role="alert" className={pageAlert}>
+            검색 조건이 올바르지 않습니다.
+          </p>
+        )}
       </section>
     </div>
   );

@@ -6,10 +6,15 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { MAX_CUSTOMER_KEYWORD_LENGTH } from '~/features/customers/type';
+import { ReceivableDaySchedule } from '~/features/receivables/components/ReceivableDaySchedule';
+import { useReceivableCalendar } from '~/features/receivables/hooks/useReceivableCalendar';
+import { readQueryError } from '~/lib/formError';
+import { formatWon } from '~/lib/money';
 import { fieldLabel, focusRing, pageSurface, sectionDescription } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
 import type { JSX, SubmitEvent } from 'react';
+import type { ReceivableCalendarDay } from '~/features/receivables/type';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const;
 
@@ -37,6 +42,18 @@ function formatCalendarDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function formatCalendarMonth(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${date.getFullYear()}-${month}`;
+}
+
+function calendarPeopleLabel(day: ReceivableCalendarDay): string {
+  if (day.extraCount === 0) {
+    return day.customerName;
+  }
+  return `${day.customerName} 외 ${day.extraCount}명`;
 }
 
 function formatScheduleTitle(date: Date): string {
@@ -79,6 +96,8 @@ export function ReceivableCalendarPanel(): JSX.Element {
   const [month, setMonth] = useState<Date>(selected ?? new Date());
   const today = new Date();
   const cells = buildMonthCells(month);
+  const calendar = useReceivableCalendar({ month: formatCalendarMonth(month), name: keyword });
+  const days = new Map((calendar.data?.days ?? []).map((day) => [day.date, day]));
 
   function replaceParams(update: (params: URLSearchParams) => void): void {
     const next = new URLSearchParams(searchParams);
@@ -170,6 +189,11 @@ export function ReceivableCalendarPanel(): JSX.Element {
               </Button>
             </div>
           </div>
+          {calendar.isError ? (
+            <p role="alert" className="mb-3 text-sm text-destructive">
+              {readQueryError(calendar.error, '분납 캘린더를 불러오지 못했습니다.')}
+            </p>
+          ) : null}
           <div className="overflow-hidden rounded-lg border border-border">
             <div className="grid grid-cols-7 bg-muted">
               {WEEKDAYS.map((weekday) => (
@@ -192,14 +216,20 @@ export function ReceivableCalendarPanel(): JSX.Element {
                 }
                 const current = isSameDay(date, today);
                 const active = selected ? isSameDay(date, selected) : false;
+                const summary = days.get(cell.key);
+                const dateLabel = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
                 return (
                   <button
                     key={cell.key}
                     type="button"
                     aria-pressed={active}
-                    aria-label={`${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`}
+                    aria-label={
+                      summary
+                        ? `${dateLabel}, ${formatWon(summary.totalAmount)}, ${calendarPeopleLabel(summary)}`
+                        : dateLabel
+                    }
                     className={cn(
-                      'flex min-h-28 flex-col items-start border-t border-border bg-background p-2 text-left',
+                      'flex min-h-28 min-w-0 flex-col items-start border-t border-border bg-background p-2 text-left',
                       edge,
                       active && 'ring-2 ring-primary ring-inset',
                       focusRing,
@@ -216,6 +246,19 @@ export function ReceivableCalendarPanel(): JSX.Element {
                     >
                       {current ? `${date.getDate()} · 오늘` : date.getDate()}
                     </span>
+                    {summary ? (
+                      <span className="mt-2 grid w-full min-w-0 gap-0.5 rounded-md bg-muted px-1.5 py-1">
+                        <span className="truncate text-xs font-medium text-foreground tabular-nums">
+                          {formatWon(summary.totalAmount)}
+                        </span>
+                        <span
+                          className="truncate text-xs text-foreground"
+                          title={calendarPeopleLabel(summary)}
+                        >
+                          {calendarPeopleLabel(summary)}
+                        </span>
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -226,7 +269,9 @@ export function ReceivableCalendarPanel(): JSX.Element {
           <h2 className="text-base font-semibold text-foreground">
             {selected ? formatScheduleTitle(selected) : '납부 일정'}
           </h2>
-          {selected ? null : (
+          {selected ? (
+            <ReceivableDaySchedule date={formatCalendarDate(selected)} name={keyword} />
+          ) : (
             <p className={sectionDescription}>날짜를 선택하면 납부 일정이 여기에 표시됩니다.</p>
           )}
         </section>

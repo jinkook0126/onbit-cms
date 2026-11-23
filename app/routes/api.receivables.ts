@@ -1,6 +1,11 @@
 import { MAX_CUSTOMER_KEYWORD_LENGTH } from '~/features/customers/type';
 import { readReceivables } from '~/features/receivables/api/receivables.server';
-import { parseReceivableSearchField } from '~/features/receivables/type';
+import {
+  parseReceivableDate,
+  parseReceivablePaymentFilter,
+  parseReceivableSearchField,
+  parseReceivableSort,
+} from '~/features/receivables/type';
 import { jsonResponse } from '~/lib/jsonResponse.server';
 
 import type { ReceivableListQuery } from '~/features/receivables/api/receivables.server';
@@ -11,6 +16,7 @@ const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const FORBIDDEN_MESSAGE = '분납 내역을 볼 권한이 없습니다.';
 const NOT_FOUND_MESSAGE = '회사를 찾을 수 없습니다.';
 const READ_FAILED_MESSAGE = '분납 목록을 불러오지 못했습니다. 다시 시도하세요.';
+const DATE_RANGE_MESSAGE = '납부예정 시작일은 종료일보다 늦을 수 없습니다.';
 
 function parsePage(value: string | null): number | null {
   if (value === null) {
@@ -26,14 +32,29 @@ function parsePage(value: string | null): number | null {
   return page;
 }
 
-function readListQuery(url: URL): ReceivableListQuery | null {
+function readListQuery(url: URL): ReceivableListQuery | 'range' | null {
   const field = parseReceivableSearchField(url.searchParams.get('field'));
   const page = parsePage(url.searchParams.get('page'));
+  const from = parseReceivableDate(url.searchParams.get('from'));
+  const to = parseReceivableDate(url.searchParams.get('to'));
+  const status = parseReceivablePaymentFilter(url.searchParams.get('status'));
+  const sort = parseReceivableSort(url.searchParams.get('sort'));
   const keyword = (url.searchParams.get('q') ?? '').trim();
-  if (field === null || page === null || keyword.length > MAX_CUSTOMER_KEYWORD_LENGTH) {
+  if (
+    field === null ||
+    page === null ||
+    from === null ||
+    to === null ||
+    status === null ||
+    sort === null ||
+    keyword.length > MAX_CUSTOMER_KEYWORD_LENGTH
+  ) {
     return null;
   }
-  return { field, keyword, page };
+  if (from !== '' && to !== '' && from > to) {
+    return 'range';
+  }
+  return { field, keyword, from, to, status, sort, page };
 }
 
 export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
@@ -42,6 +63,9 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
   }
 
   const query = readListQuery(new URL(request.url));
+  if (query === 'range') {
+    return jsonResponse({ formError: DATE_RANGE_MESSAGE }, 400);
+  }
   if (!query) {
     return jsonResponse({ formError: INVALID_REQUEST_MESSAGE }, 400);
   }

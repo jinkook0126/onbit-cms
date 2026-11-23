@@ -7,6 +7,7 @@ import {
   isCustomerProfileResponse,
   isCustomerReminderResponse,
   isCustomerDetail,
+  isCustomerFavoriteResponse,
   isCustomerImportResponse,
   isCustomerListResponse,
   isCustomerRetainResponse,
@@ -33,6 +34,7 @@ import type {
   CustomerProfileSubmission,
   CustomerImportResponse,
   CustomerDetail,
+  CustomerFavoriteResponse,
   CustomerListParams,
   CustomerListResponse,
   CustomerReminderResponse,
@@ -69,6 +71,24 @@ function customersPath(params: CustomerListParams): string {
   if (params.status) {
     search.set('status', params.status);
   }
+  if (params.source) {
+    search.set('source', params.source);
+  }
+  if (params.from !== '') {
+    search.set('from', params.from);
+  }
+  if (params.to !== '') {
+    search.set('to', params.to);
+  }
+  if (params.sort.field !== 'registered') {
+    search.set('sort', params.sort.field);
+  }
+  if (params.sort.direction !== 'desc') {
+    search.set('order', params.sort.direction);
+  }
+  if (params.view !== 'all') {
+    search.set('view', params.view);
+  }
   if (params.page > 1) {
     search.set('page', String(params.page));
   }
@@ -85,6 +105,20 @@ export async function requestCustomerList(
 ): Promise<CustomerListResponse> {
   const result = await apiClient(customersPath(params), { signal });
   if (!result.ok || !isCustomerListResponse(result.body)) {
+    throw new ApiError(result.status, result.body);
+  }
+  return result.body;
+}
+
+export async function requestSetCustomerFavorite(
+  customerId: string,
+  favorited: boolean,
+): Promise<CustomerFavoriteResponse> {
+  const result = await apiClient(`${customersApiPath}/${customerId}/favorite`, {
+    method: 'PUT',
+    body: { favorited },
+  });
+  if (!result.ok || !isCustomerFavoriteResponse(result.body)) {
     throw new ApiError(result.status, result.body);
   }
   return result.body;

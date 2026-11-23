@@ -6,7 +6,10 @@ export default [
     route('customers', 'routes/customers.tsx', { id: 'customers' }, [
       index('routes/customers-index.tsx', { id: 'customers-index' }),
     ]),
-    route('receivables', 'routes/receivables.tsx', { id: 'receivables' }),
+    route('receivables', 'routes/receivables.tsx', { id: 'receivables' }, [
+      index('routes/receivables-index.tsx', { id: 'receivables-index' }),
+      route(':customerId', 'routes/receivable.tsx', { id: 'receivable' }),
+    ]),
     route('settings', 'routes/settings.tsx', { id: 'settings' }, [
       index('routes/settings-index.tsx', { id: 'settings-index' }),
       route('companies', 'routes/settings-companies.tsx', { id: 'settings-companies' }, [
@@ -25,6 +28,14 @@ export default [
   route('api/login', 'routes/api.login.ts'),
   route('api/logout', 'routes/api.logout.ts'),
   route('api/account', 'routes/api.account.ts'),
+  route('api/receivables/schedule', 'routes/api.receivable-schedule.ts'),
+  route('api/receivables/calendar', 'routes/api.receivable-calendar.ts'),
+  route('api/receivables/:customerId/plan', 'routes/api.receivable-plan.ts'),
+  route(
+    'api/receivables/:customerId/installments/:installmentId',
+    'routes/api.receivable-installment.ts',
+  ),
+  route('api/receivables/:customerId', 'routes/api.receivable.ts'),
   route('api/receivables', 'routes/api.receivables.ts'),
   route('api/today', 'routes/api.today.ts'),
   route('api/customers', 'routes/api.customers.ts'),
@@ -52,6 +63,7 @@ export default [
   route('api/customers/:customerId/summary', 'routes/api.customer-summary.ts'),
   route('api/customers/:customerId/case-type', 'routes/api.customer-case-type.ts'),
   route('api/customers/:customerId/profile', 'routes/api.customer-profile.ts'),
+  route('api/customers/:customerId/favorite', 'routes/api.customer-favorite.ts'),
   route('api/customers/:customerId', 'routes/api.customer.ts'),
   route('api/companies', 'routes/api.companies.ts'),
   route('api/companies/:companyId', 'routes/api.company.ts'),

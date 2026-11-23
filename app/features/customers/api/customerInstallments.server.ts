@@ -72,6 +72,29 @@ export function buildInstallmentDrafts(input: {
   ];
 }
 
+export function buildFixedAmountDrafts(input: {
+  contractedOn: Date;
+  deposit: number;
+  installmentCount: number;
+  firstPaymentOn: Date;
+  roundAmount: number;
+}): InstallmentDraft[] {
+  return [
+    {
+      kind: 'DEPOSIT',
+      sequence: 0,
+      promisedOn: input.contractedOn,
+      scheduledAmount: input.deposit,
+    },
+    ...Array.from({ length: input.installmentCount }, (_, index) => ({
+      kind: 'INSTALLMENT' as const,
+      sequence: index + 1,
+      promisedOn: addUtcMonths(input.firstPaymentOn, index),
+      scheduledAmount: input.roundAmount,
+    })),
+  ];
+}
+
 const installmentSelect = {
   id: true,
   kind: true,
@@ -104,43 +127,20 @@ function toInstallmentListItem(row: InstallmentRow): InstallmentListItem | null 
   };
 }
 
-export async function readOrCreateInstallments(
+export async function readCustomerInstallments(
   customerId: string,
 ): Promise<InstallmentListItem[] | null> {
   const customerCase = await prisma.customerCase.findUnique({
     where: { customerId },
     select: {
-      id: true,
-      contractedOn: true,
-      retainerFee: true,
-      deposit: true,
-      installmentCount: true,
-      firstPaymentOn: true,
       installments: { orderBy: { sequence: 'asc' }, select: installmentSelect },
     },
   });
   if (!customerCase) {
     return [];
   }
-  const stored =
-    customerCase.installments.length > 0
-      ? customerCase.installments
-      : await prisma.$transaction(async (tx) => {
-          await tx.customerInstallment.createMany({
-            data: buildInstallmentDrafts(customerCase).map((draft) => ({
-              customerCaseId: customerCase.id,
-              ...draft,
-            })),
-            skipDuplicates: true,
-          });
-          return tx.customerInstallment.findMany({
-            where: { customerCaseId: customerCase.id },
-            orderBy: { sequence: 'asc' },
-            select: installmentSelect,
-          });
-        });
   const installments: InstallmentListItem[] = [];
-  for (const row of stored) {
+  for (const row of customerCase.installments) {
     const item = toInstallmentListItem(row);
     if (!item) {
       return null;
@@ -171,7 +171,7 @@ export async function readInstallments(
     if (!customer) {
       return { result: { status: 'not-found' }, headers };
     }
-    const installments = await readOrCreateInstallments(customer.id);
+    const installments = await readCustomerInstallments(customer.id);
     if (installments === null) {
       return { result: { status: 'failed' }, headers };
     }
@@ -322,7 +322,7 @@ export async function updateInstallmentPromise(
 
 const PAYMENT_AMOUNT_REQUIRED_MESSAGE = '입금액을 입력하세요.';
 const PAYMENT_AMOUNT_INVALID_MESSAGE = '입금액은 1원 이상 20억 원 이하의 정수로 입력하세요.';
-const PAYMENT_AMOUNT_EXCEEDS_MESSAGE = '미납액보다 큰 금액은 등록할 수 없습니다.';
+const PAYMENT_AMOUNT_EXCEEDS_MESSAGE = '남은 예정액보다 큰 금액은 등록할 수 없습니다.';
 const PAYMENT_DATE_REQUIRED_MESSAGE = '입금일을 선택하세요.';
 const PAYMENT_DATE_INVALID_MESSAGE = '입금일은 올바른 날짜로 입력하세요.';
 const PAYMENT_TARGET_REQUIRED_MESSAGE = '회차를 선택하세요.';

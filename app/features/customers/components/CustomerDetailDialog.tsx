@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
@@ -22,6 +23,7 @@ import {
   formatCustomerPhone,
   inflowSourceLabels,
 } from '~/features/customers/type';
+import { receivableDetailPath } from '~/features/receivables/type';
 import { readQueryError } from '~/lib/formError';
 import { formatWon } from '~/lib/money';
 import { fieldLabel, fieldValue } from '~/lib/styles';
@@ -110,6 +112,7 @@ export function CustomerDetailDialog({
   customerId,
   onClose,
 }: CustomerDetailDialogProps): JSX.Element {
+  const navigate = useNavigate();
   const open = customerId !== '';
   const [editing, setEditing] = useState(false);
   const customer = useCustomerDetail(customerId);
@@ -146,7 +149,14 @@ export function CustomerDetailDialog({
             수정
           </Button>
           {customer.data.status === 'RETAINED' ? (
-            <Button type="button" variant="outline" size="sm">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void navigate(receivableDetailPath(customer.data.id));
+              }}
+            >
               분납/입금 내역
             </Button>
           ) : null}

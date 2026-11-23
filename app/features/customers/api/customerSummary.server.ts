@@ -1,5 +1,5 @@
 import { seoulToday } from '~/features/customers/api/customerDates.server';
-import { readOrCreateInstallments } from '~/features/customers/api/customerInstallments.server';
+import { readCustomerInstallments } from '~/features/customers/api/customerInstallments.server';
 import {
   readAccessibleCustomer,
   resolveCustomerActor,
@@ -59,7 +59,7 @@ export async function readCustomerSummary(
     if (!customerCase) {
       return { result: { status: 'not-found' }, headers };
     }
-    const installments = await readOrCreateInstallments(customer.id);
+    const installments = await readCustomerInstallments(customer.id);
     if (installments === null) {
       return { result: { status: 'failed' }, headers };
     }

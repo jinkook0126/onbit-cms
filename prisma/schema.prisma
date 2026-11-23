@@ -139,6 +139,7 @@ model User {
   editedConsultations Consultation[]       @relation("ConsultationEditor")
   actedPayments       InstallmentPayment[] @relation("PaymentActor")
   actedRefunds        InstallmentRefund[]  @relation("RefundActor")
+  customerFavorites   CustomerFavorite[]
 
   @@index([companyId])
   @@index([teamId])
@@ -191,6 +192,7 @@ model Customer {
   assignee      User?          @relation("CustomerAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   consultations Consultation[]
   customerCase  CustomerCase?
+  favorites     CustomerFavorite[]
 
   @@index([companyId])
   @@index([assigneeId])
@@ -221,6 +223,20 @@ model Consultation {
   @@index([updatedById])
   @@index([customerId, createdAt])
   @@map("consultations")
+}
+
+/// 사용자가 상담 고객 목록에 표시해 둔 즐겨찾기. 사용자마다 따로 둔다.
+model CustomerFavorite {
+  userId     String   @map("user_id") @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([userId, customerId])
+  @@index([customerId])
+  @@map("customer_favorites")
 }
 
 /// 수임으로 전환할 때 만드는 사건. 고객당 하나다.
