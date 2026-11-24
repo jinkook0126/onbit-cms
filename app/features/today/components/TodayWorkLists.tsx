@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import { caseTypeLabels, installmentScheduleLabel } from '~/features/customers/type';
+import { installmentScheduleLabel } from '~/features/customers/type';
 import { todayDepositCategoryLabels } from '~/features/today/type';
 import { formatWon } from '~/lib/money';
 import { focusRing } from '~/lib/styles';
@@ -166,7 +166,7 @@ function OverdueTable({ customers }: { customers: TodayOverdueCustomer[] }): JSX
             <TableCell className={cn(amountCell, 'text-destructive')}>
               {formatWon(customer.amount)}
             </TableCell>
-            <TableCell className={valueCell}>{caseTypeLabels[customer.caseType]}</TableCell>
+            <TableCell className={valueCell}>{customer.caseType.name}</TableCell>
           </TableRow>
         ))}
       </TableBody>

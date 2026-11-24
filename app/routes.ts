@@ -22,6 +22,11 @@ export default [
       ]),
       route('employees', 'routes/settings-employees.tsx', { id: 'settings-employees' }),
       route('account', 'routes/settings-account.tsx', { id: 'settings-account' }),
+      route('consultation-statuses', 'routes/settings-catalog.tsx', {
+        id: 'settings-consultation-statuses',
+      }),
+      route('inflow-sources', 'routes/settings-catalog.tsx', { id: 'settings-inflow-sources' }),
+      route('case-types', 'routes/settings-catalog.tsx', { id: 'settings-case-types' }),
     ]),
   ]),
   route('login', 'routes/login.tsx'),
@@ -72,5 +77,8 @@ export default [
   route('api/employees', 'routes/api.employees.ts'),
   route('api/employees/:employeeId', 'routes/api.employee.ts'),
   route('api/teams/:teamId', 'routes/api.team.ts'),
+  route('api/catalog/:kind/:itemId/status', 'routes/api.catalog-item-status.ts'),
+  route('api/catalog/:kind/:itemId', 'routes/api.catalog-item.ts'),
+  route('api/catalog/:kind', 'routes/api.catalog.ts'),
   route('api/account/password', 'routes/api.account-password.ts'),
 ] satisfies RouteConfig;

@@ -11,18 +11,13 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog';
 import { Skeleton } from '~/components/ui/skeleton';
+import { catalogBadgeVariant } from '~/features/catalog/type';
 import { CustomerConsultationForm } from '~/features/customers/components/CustomerConsultationForm';
 import { CustomerConsultationList } from '~/features/customers/components/CustomerConsultationList';
 import { CustomerProfileDialog } from '~/features/customers/components/CustomerProfileDialog';
 import { useCustomerConsultations } from '~/features/customers/hooks/useCustomerConsultations';
 import { useCustomerDetail } from '~/features/customers/hooks/useCustomerDetail';
-import {
-  caseTypeLabels,
-  consultationStatusBadgeVariants,
-  consultationStatusLabels,
-  formatCustomerPhone,
-  inflowSourceLabels,
-} from '~/features/customers/type';
+import { formatCustomerPhone, isRetainedStatus } from '~/features/customers/type';
 import { receivableDetailPath } from '~/features/receivables/type';
 import { readQueryError } from '~/lib/formError';
 import { formatWon } from '~/lib/money';
@@ -77,12 +72,10 @@ function CustomerDetailFields({ customer }: { customer: CustomerDetail }): JSX.E
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <DetailField label="상담상태">
-        <Badge variant={consultationStatusBadgeVariants[customer.status]}>
-          {consultationStatusLabels[customer.status]}
-        </Badge>
+        <Badge variant={catalogBadgeVariant(customer.status.code)}>{customer.status.name}</Badge>
       </DetailField>
       <DetailField label="사건유형">
-        <DetailValue value={customer.caseType ? caseTypeLabels[customer.caseType] : null} />
+        <DetailValue value={customer.caseType?.name ?? null} />
       </DetailField>
       <DetailField label="담당자">
         <DetailValue value={customer.assigneeName} />
@@ -91,7 +84,7 @@ function CustomerDetailFields({ customer }: { customer: CustomerDetail }): JSX.E
         <p className={fieldValue}>{formatCustomerPhone(customer.phone)}</p>
       </DetailField>
       <DetailField label="유입처">
-        <p className={fieldValue}>{inflowSourceLabels[customer.source]}</p>
+        <p className={fieldValue}>{customer.source.name}</p>
       </DetailField>
       <DetailField label="등록날짜">
         <p className={fieldValue}>{formatCalendarDay(customer.registeredOn)}</p>
@@ -148,7 +141,7 @@ export function CustomerDetailDialog({
           >
             수정
           </Button>
-          {customer.data.status === 'RETAINED' ? (
+          {isRetainedStatus(customer.data.status.code) ? (
             <Button
               type="button"
               variant="outline"
@@ -161,10 +154,7 @@ export function CustomerDetailDialog({
             </Button>
           ) : null}
         </div>
-        <CustomerConsultationList
-          customerId={customer.data.id}
-          consultations={consultations}
-        />
+        <CustomerConsultationList customerId={customer.data.id} consultations={consultations} />
         <CustomerConsultationForm key={customer.data.id} customerId={customer.data.id} />
       </div>
     );

@@ -1,10 +1,13 @@
+import {
+  catalogOptionRefSelect,
+  toOptionRef,
+} from '~/features/customers/api/customerCatalog.server';
 import { formatContactDate, seoulToday } from '~/features/customers/api/customerDates.server';
 import { readCustomerInstallments } from '~/features/customers/api/customerInstallments.server';
 import {
   readAccessibleCustomer,
   resolveCustomerActor,
 } from '~/features/customers/api/customerScope.server';
-import { isCaseType } from '~/features/customers/type';
 import { receivableInstallmentStatus } from '~/features/receivables/type';
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel } from '~/lib/error.server';
@@ -67,13 +70,10 @@ export async function readReceivableDetail(
     }
     const customerCase = await prisma.customerCase.findUnique({
       where: { customerId: customer.id },
-      select: { caseType: true, retainerFee: true },
+      select: { caseType: { select: catalogOptionRefSelect }, retainerFee: true },
     });
     if (!customerCase) {
       return { result: { status: 'not-found' }, headers };
-    }
-    if (!isCaseType(customerCase.caseType)) {
-      return { result: { status: 'failed' }, headers };
     }
     const installments = await readCustomerInstallments(customer.id);
     if (installments === null) {
@@ -110,7 +110,7 @@ export async function readReceivableDetail(
         customer: {
           id: customer.id,
           name: customer.name,
-          caseType: customerCase.caseType,
+          caseType: toOptionRef(customerCase.caseType),
           totalRetainer: customerCase.retainerFee,
           depositReceived: received.depositReceived,
           installmentReceived: received.installmentReceived,

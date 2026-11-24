@@ -17,7 +17,7 @@ const READ_FAILED_MESSAGE = '상담 고객을 불러오지 못했습니다. 다�
 const STATUS_FAILED_MESSAGE = '상담 상태를 변경하지 못했습니다. 다시 시도하세요.';
 const DELETE_FORBIDDEN_MESSAGE = '상담 고객을 삭제할 권한이 없습니다.';
 const DELETE_FAILED_MESSAGE = '상담 고객을 삭제하지 못했습니다. 다시 시도하세요.';
-const RETAINED_STATUS_MESSAGE = '수임은 상담 상태에서 고를 수 없습니다.';
+const RETAINED_STATUS_MESSAGE = '선택할 수 없는 상담 상태입니다. 수임은 수임 전환에서 처리하세요.';
 const RETAINED_LOCKED_MESSAGE = '수임 상태는 바꿀 수 없습니다.';
 
 export async function loader({ request, params }: Route.LoaderArgs): Promise<Response> {
@@ -82,7 +82,7 @@ export async function action({ request, params }: Route.ActionArgs): Promise<Res
   const { result, headers } = await updateCustomerStatus(
     request,
     params.customerId,
-    payload.status,
+    payload.statusId,
   );
   switch (result.status) {
     case 'ok':

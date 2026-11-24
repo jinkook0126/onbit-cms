@@ -4,6 +4,7 @@ import {
   resolveSession,
 } from '~/features/auth/api/auth.server';
 import { MAX_LOGIN_ID_LENGTH } from '~/features/auth/type';
+import { seedCompanyCatalog } from '~/features/catalog/api/catalogSeed.server';
 import { MAX_COMPANY_NAME_LENGTH } from '~/features/companies/type';
 import { MAX_ACCOUNT_NAME_LENGTH } from '~/features/settings/type';
 import { prisma } from '~/lib/db.server';
@@ -131,9 +132,13 @@ export async function createCompany(
   }
 
   try {
-    const company = await prisma.company.create({
-      data: { name: name.trim(), loginId: normalizedLoginId },
-      select: { id: true, name: true, createdAt: true, isActive: true },
+    const company = await prisma.$transaction(async (tx) => {
+      const created = await tx.company.create({
+        data: { name: name.trim(), loginId: normalizedLoginId },
+        select: { id: true, name: true, createdAt: true, isActive: true },
+      });
+      await seedCompanyCatalog(tx, created.id);
+      return created;
     });
     return { result: { status: 'ok', company: toCompanyListItem(company) }, headers };
   } catch (error) {

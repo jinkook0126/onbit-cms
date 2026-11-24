@@ -19,14 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import {
-  CUSTOMER_PAGE_SIZE,
-  caseTypeLabels,
-  consultationStatusBadgeVariants,
-  consultationStatusLabels,
-  formatCustomerPhone,
-  inflowSourceLabels,
-} from '~/features/customers/type';
+import { catalogBadgeVariant } from '~/features/catalog/type';
+import { CUSTOMER_PAGE_SIZE, formatCustomerPhone } from '~/features/customers/type';
 import { focusRing, pageSurface } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -255,7 +249,7 @@ function createCustomerColumns(
     }),
     columnHelper.accessor('source', {
       header: '유입처',
-      cell: (context) => inflowSourceLabels[context.getValue()],
+      cell: (context) => context.getValue().name,
     }),
     columnHelper.accessor('assigneeName', {
       header: '담당',
@@ -271,11 +265,7 @@ function createCustomerColumns(
       header: '상담상태',
       cell: (context) => {
         const status = context.getValue();
-        return (
-          <Badge variant={consultationStatusBadgeVariants[status]}>
-            {consultationStatusLabels[status]}
-          </Badge>
-        );
+        return <Badge variant={catalogBadgeVariant(status.code)}>{status.name}</Badge>;
       },
     }),
     columnHelper.accessor('registeredOn', {
@@ -309,7 +299,7 @@ function createCustomerColumns(
         if (!caseType) {
           return <UnassignedBadge />;
         }
-        return caseTypeLabels[caseType];
+        return caseType.name;
       },
     }),
     columnHelper.accessor('nextContactOn', {

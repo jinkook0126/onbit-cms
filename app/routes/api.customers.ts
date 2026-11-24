@@ -1,16 +1,14 @@
 import { createCustomer, readCustomers } from '~/features/customers/api/customers.server';
 import {
   MAX_CUSTOMER_KEYWORD_LENGTH,
-  isConsultationStatusParam,
+  isCatalogOptionParam,
   isCustomerProfileSubmission,
-  isInflowSourceParam,
-  parseConsultationStatus,
+  parseCatalogOptionParam,
   parseCustomerDate,
   parseCustomerListView,
   parseCustomerSearchField,
   parseCustomerSortDirection,
   parseCustomerSortField,
-  parseInflowSource,
 } from '~/features/customers/type';
 import { jsonResponse } from '~/lib/jsonResponse.server';
 
@@ -59,8 +57,8 @@ function readListQuery(url: URL): CustomerListQuery | 'range' | null {
     sortField === null ||
     sortDirection === null ||
     view === null ||
-    !isConsultationStatusParam(statusParam) ||
-    !isInflowSourceParam(sourceParam)
+    !isCatalogOptionParam(statusParam) ||
+    !isCatalogOptionParam(sourceParam)
   ) {
     return null;
   }
@@ -73,8 +71,8 @@ function readListQuery(url: URL): CustomerListQuery | 'range' | null {
   return {
     field,
     keyword,
-    status: parseConsultationStatus(statusParam),
-    source: parseInflowSource(sourceParam),
+    statusId: parseCatalogOptionParam(statusParam),
+    sourceId: parseCatalogOptionParam(sourceParam),
     from,
     to,
     sortField,

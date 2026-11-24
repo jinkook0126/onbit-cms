@@ -1,8 +1,10 @@
 import { resolveSession } from '~/features/auth/api/auth.server';
+import { catalogOptionRefSelect } from '~/features/customers/api/customerCatalog.server';
 import { prisma } from '~/lib/db.server';
 import { createSupabaseServerClient } from '~/lib/supabase.server';
 import { isUuid } from '~/lib/uuid.server';
 
+import type { CatalogOptionRef } from '~/features/catalog/type';
 import type { Prisma } from '../../../../generated/prisma/client';
 
 export type CustomerActor =
@@ -68,7 +70,9 @@ export type AccessibleCustomer = {
   id: string;
   name: string;
   phone: string;
-  status: string;
+  status: CatalogOptionRef;
+  sourceId: string;
+  caseTypeId: string | null;
   assignee: { name: string } | null;
 };
 
@@ -86,7 +90,9 @@ export async function readAccessibleCustomer(
       id: true,
       name: true,
       phone: true,
-      status: true,
+      status: { select: catalogOptionRefSelect },
+      sourceId: true,
+      caseTypeId: true,
       assignee: { select: { name: true } },
     },
   });

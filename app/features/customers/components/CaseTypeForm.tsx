@@ -10,28 +10,19 @@ import {
   SelectValue,
 } from '~/components/ui/select';
 import { useCaseTypeForm } from '~/features/customers/hooks/useCaseTypeForm';
-import { caseTypeLabels, isCaseType } from '~/features/customers/type';
 import { fieldLabel, fieldValue } from '~/lib/styles';
 
 import type { JSX, SubmitEvent } from 'react';
-import type { CaseType } from '~/features/customers/type';
+import type { CatalogOptionRef } from '~/features/catalog/type';
 
 type CaseTypeFormProps = {
   customerId: string;
-  caseType: CaseType;
+  caseType: CatalogOptionRef;
 };
-
-const caseTypes = Object.keys(caseTypeLabels) as CaseType[];
 
 export function CaseTypeForm({ customerId, caseType }: CaseTypeFormProps): JSX.Element {
   const form = useCaseTypeForm(customerId, caseType);
   const errorId = 'customer-case-type-error';
-
-  function handleCaseTypeChange(value: string): void {
-    if (isCaseType(value)) {
-      form.changeCaseType(value);
-    }
-  }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -46,9 +37,9 @@ export function CaseTypeForm({ customerId, caseType }: CaseTypeFormProps): JSX.E
       {form.editing ? (
         <form noValidate className="grid gap-2" onSubmit={handleSubmit}>
           <Select
-            value={form.caseType}
+            value={form.caseTypeId}
             disabled={form.isSubmitting}
-            onValueChange={handleCaseTypeChange}
+            onValueChange={form.changeCaseType}
           >
             <SelectTrigger
               id="customer-case-type"
@@ -59,9 +50,9 @@ export function CaseTypeForm({ customerId, caseType }: CaseTypeFormProps): JSX.E
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {caseTypes.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {caseTypeLabels[item]}
+              {form.caseTypeOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -93,7 +84,7 @@ export function CaseTypeForm({ customerId, caseType }: CaseTypeFormProps): JSX.E
         </form>
       ) : (
         <div className="flex h-5 items-center gap-1">
-          <p className={fieldValue}>{caseTypeLabels[caseType]}</p>
+          <p className={fieldValue}>{caseType.name}</p>
           <Button
             type="button"
             variant="ghost"

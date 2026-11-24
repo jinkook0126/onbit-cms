@@ -1,6 +1,7 @@
-import { isCaseType } from '~/features/customers/type';
+import { isCatalogOptionRef } from '~/features/catalog/type';
 
-import type { CaseType, InstallmentKind } from '~/features/customers/type';
+import type { CatalogOptionRef } from '~/features/catalog/type';
+import type { InstallmentKind } from '~/features/customers/type';
 
 export const RECEIVABLE_PAGE_SIZE = 15;
 
@@ -91,7 +92,7 @@ export function seoulMonthStart(today = seoulCalendarToday()): string {
 export type ReceivableCustomerSummary = {
   id: string;
   name: string;
-  caseType: CaseType;
+  caseType: CatalogOptionRef;
   totalRetainer: number;
   depositReceived: number;
   installmentReceived: number;
@@ -222,7 +223,7 @@ function isReceivableCustomerSummary(value: unknown): value is ReceivableCustome
   return (
     typeof value.id === 'string' &&
     typeof value.name === 'string' &&
-    isCaseType(value.caseType) &&
+    isCatalogOptionRef(value.caseType) &&
     isCount(value.totalRetainer) &&
     isCount(value.depositReceived) &&
     isCount(value.installmentReceived) &&

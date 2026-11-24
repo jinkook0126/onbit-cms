@@ -24,42 +24,6 @@ enum UserRole {
   @@map("user_role")
 }
 
-/// 상담 고객의 현재 상태. 화면에서 고르는 고정 목록이다.
-enum ConsultationStatus {
-  /// 상담중
-  IN_CONSULTATION
-  /// 고민중
-  CONSIDERING
-  /// 부재
-  ABSENT
-  /// 거절
-  REJECTED
-  /// 수임
-  RETAINED
-
-  @@map("consultation_status")
-}
-
-/// 수임 사건의 유형. 화면에서 고르는 고정 목록이다.
-enum CaseType {
-  /// 개인회생
-  PERSONAL_REHABILITATION
-  /// 개인파산
-  PERSONAL_BANKRUPTCY
-  /// 개인워크아웃
-  PERSONAL_WORKOUT
-  /// 신속채무조정
-  FAST_DEBT_ADJUSTMENT
-  /// 새출발기금
-  FRESH_START_FUND
-  /// 개회와 신복위를 함께 진행한다.
-  REHABILITATION_AND_CREDIT_RECOVERY
-  /// 기타
-  OTHER
-
-  @@map("case_type")
-}
-
 /// 분납 일정의 구분. 계약금은 한 줄이고, 회차는 분납 회수만큼 있다.
 enum InstallmentKind {
   /// 계약금
@@ -80,22 +44,6 @@ enum PaymentMethod {
   @@map("payment_method")
 }
 
-/// 상담 고객이 들어온 경로. 화면에서 고르는 고정 목록이다.
-enum InflowSource {
-  /// 홈페이지
-  HOMEPAGE
-  /// 네이버
-  NAVER
-  /// 거래처 소개
-  REFERRAL
-  /// 전화
-  PHONE
-  /// 기타
-  OTHER
-
-  @@map("inflow_source")
-}
-
 /// 회사. 이후 고객 데이터와 업무 데이터는 이 레코드에 소속된다.
 model Company {
   id        String   @id @default(uuid()) @db.Uuid
@@ -106,11 +54,75 @@ model Company {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  users     User[]
-  teams     Team[]
-  customers Customer[]
+  users                User[]
+  teams                Team[]
+  customers            Customer[]
+  consultationStatuses ConsultationStatusOption[]
+  inflowSources        InflowSourceOption[]
+  caseTypes            CaseTypeOption[]
 
   @@map("companies")
+}
+
+/// 회사별 상담 상태. 회사 마스터가 추가·삭제한다.
+model ConsultationStatusOption {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(40)
+  /// 기본 시드 코드. 사용자가 추가한 항목은 NULL이다. RETAINED는 수임 특례에 쓴다.
+  code      String?  @db.VarChar(64)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers Customer[]
+
+  @@unique([companyId, name])
+  @@index([companyId, sortOrder])
+  @@map("consultation_status_options")
+}
+
+/// 회사별 유입처. 회사 마스터가 추가·삭제한다.
+model InflowSourceOption {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(40)
+  /// 기본 시드 코드. 사용자가 추가한 항목은 NULL이다.
+  code      String?  @db.VarChar(64)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers Customer[]
+
+  @@unique([companyId, name])
+  @@index([companyId, sortOrder])
+  @@map("inflow_source_options")
+}
+
+/// 회사별 사건 유형. 회사 마스터가 추가·삭제한다.
+model CaseTypeOption {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(40)
+  /// 기본 시드 코드. 사용자가 추가한 항목은 NULL이다.
+  code      String?  @db.VarChar(64)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers     Customer[]
+  customerCases CustomerCase[]
+
+  @@unique([companyId, name])
+  @@index([companyId, sortOrder])
+  @@map("case_type_options")
 }
 
 /// CMS 회원. 인증 자격은 Supabase Auth가 관리하고, 이 테이블은 이름, 소속, 권한을 가진다.
@@ -166,38 +178,44 @@ model Team {
   @@map("teams")
 }
 
-/// 회사의 상담 고객. 상담 상태와 유입처는 ENUM이고, 담당 직원과 다음 연락일은 아직 없을 수 있다.
+/// 회사의 상담 고객. 상담 상태·유입처·사건 유형은 회사별 마스터를 참조한다.
 model Customer {
-  id               String             @id @default(uuid()) @db.Uuid
-  companyId        String             @map("company_id") @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
   name             String
   /// 연락 전화번호. 하이픈 없이 숫자만 저장한다.
-  phone            String             @db.VarChar(20)
-  source           InflowSource
+  phone            String    @db.VarChar(20)
+  sourceId         String    @map("source_id") @db.Uuid
   /// 현재 상담 상태.
-  status           ConsultationStatus @default(IN_CONSULTATION)
+  statusId         String    @map("status_id") @db.Uuid
   /// 담당 사용자 id. 아직 없으면 NULL이다.
   /// 정하면 같은 회사의 활성 직원이어야 하고, 회사 담당 마스터는 본인을 담당으로 둘 수 있다.
-  assigneeId       String?            @map("assignee_id") @db.Uuid
+  assigneeId       String?   @map("assignee_id") @db.Uuid
   /// 다음 연락일. 아직 없으면 NULL이다.
-  nextContactOn    DateTime?          @map("next_contact_on") @db.Date
+  nextContactOn    DateTime? @map("next_contact_on") @db.Date
   /// 다음 연락 시각. `HH:mm`. 날짜만 있는 예전 일정은 NULL이다.
-  nextContactTime  String?            @map("next_contact_time") @db.VarChar(5)
+  nextContactTime  String?   @map("next_contact_time") @db.VarChar(5)
   /// DB 최초 처리일. 등록할 때 비우면 NULL이다.
-  firstProcessedOn DateTime?          @map("first_processed_on") @db.Date
+  firstProcessedOn DateTime? @map("first_processed_on") @db.Date
   /// 수임 전에 고른 사건 유형. 수임 후에는 사건의 유형과 같게 맞춘다.
-  caseType         CaseType?          @map("case_type")
-  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  caseTypeId       String?   @map("case_type_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  assignee      User?          @relation("CustomerAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  company       Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  source        InflowSourceOption        @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  status        ConsultationStatusOption  @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  caseType      CaseTypeOption?           @relation(fields: [caseTypeId], references: [id], onDelete: Restrict)
+  assignee      User?                     @relation("CustomerAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   consultations Consultation[]
   customerCase  CustomerCase?
   favorites     CustomerFavorite[]
 
   @@index([companyId])
   @@index([assigneeId])
+  @@index([sourceId])
+  @@index([statusId])
+  @@index([caseTypeId])
   @@map("customers")
 }
 
@@ -249,7 +267,7 @@ model CustomerCase {
   customerId       String   @unique @map("customer_id") @db.Uuid
   /// 계약일.
   contractedOn     DateTime @map("contracted_on") @db.Date
-  caseType         CaseType @map("case_type")
+  caseTypeId       String   @map("case_type_id") @db.Uuid
   /// 수임료. 원 단위 정수.
   retainerFee      Int      @map("retainer_fee")
   /// 계약금. 원 단위 정수.
@@ -262,8 +280,10 @@ model CustomerCase {
   updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   customer     Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  caseType     CaseTypeOption        @relation(fields: [caseTypeId], references: [id], onDelete: Restrict)
   installments CustomerInstallment[]
 
+  @@index([caseTypeId])
   @@map("customer_cases")
 }
 

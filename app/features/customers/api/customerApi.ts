@@ -68,11 +68,11 @@ function customersPath(params: CustomerListParams): string {
   if (params.keyword !== '') {
     search.set('q', params.keyword);
   }
-  if (params.status) {
-    search.set('status', params.status);
+  if (params.statusId) {
+    search.set('status', params.statusId);
   }
-  if (params.source) {
-    search.set('source', params.source);
+  if (params.sourceId) {
+    search.set('source', params.sourceId);
   }
   if (params.from !== '') {
     search.set('from', params.from);

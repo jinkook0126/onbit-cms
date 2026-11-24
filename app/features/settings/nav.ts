@@ -1,4 +1,12 @@
-import { Building2Icon, ContactIcon, UserRoundIcon, UsersIcon } from 'lucide-react';
+import {
+  Building2Icon,
+  ContactIcon,
+  FolderKanbanIcon,
+  RouteIcon,
+  UserRoundIcon,
+  UsersIcon,
+  WorkflowIcon,
+} from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
 import type { ShellRole } from '~/features/shell/type';
@@ -42,6 +50,30 @@ export const settingsNavSections: readonly SettingsNavSection[] = [
     ],
   },
   {
+    id: 'customer-masters',
+    label: '고객 마스터',
+    items: [
+      {
+        to: '/settings/consultation-statuses',
+        label: '상담관리',
+        description: '상담 상태 목록을 관리합니다.',
+        icon: WorkflowIcon,
+      },
+      {
+        to: '/settings/inflow-sources',
+        label: '유입처관리',
+        description: '고객 유입 경로 목록을 관리합니다.',
+        icon: RouteIcon,
+      },
+      {
+        to: '/settings/case-types',
+        label: '사건관리',
+        description: '사건 유형 목록을 관리합니다.',
+        icon: FolderKanbanIcon,
+      },
+    ],
+  },
+  {
     id: 'account',
     label: '계정 및 권한',
     items: [
@@ -59,7 +91,13 @@ function canSeeSettingsItem(role: ShellRole, to: string): boolean {
   if (to === '/settings/companies') {
     return role === 'SUPER_ADMIN';
   }
-  if (to === '/settings/teams' || to === '/settings/employees') {
+  if (
+    to === '/settings/teams' ||
+    to === '/settings/employees' ||
+    to === '/settings/consultation-statuses' ||
+    to === '/settings/inflow-sources' ||
+    to === '/settings/case-types'
+  ) {
     return role === 'COMPANY_ADMIN';
   }
   return true;

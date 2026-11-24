@@ -1,6 +1,6 @@
-import { isCaseType } from '~/features/customers/type';
+import { isCatalogOptionRef } from '~/features/catalog/type';
 
-import type { CaseType } from '~/features/customers/type';
+import type { CatalogOptionRef } from '~/features/catalog/type';
 
 export type TodayDepositCategory = 'DEPOSIT' | 'INSTALLMENT';
 
@@ -17,7 +17,7 @@ export type TodayOverdueCustomer = {
   customerId: string;
   customerName: string;
   amount: number;
-  caseType: CaseType;
+  caseType: CatalogOptionRef;
 };
 
 export type TodayUpcomingPayment = {
@@ -123,7 +123,7 @@ function isTodayOverdueCustomer(value: unknown): value is TodayOverdueCustomer {
     typeof value.customerId === 'string' &&
     typeof value.customerName === 'string' &&
     isCount(value.amount) &&
-    isCaseType(value.caseType)
+    isCatalogOptionRef(value.caseType)
   );
 }
 

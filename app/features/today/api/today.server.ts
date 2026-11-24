@@ -1,3 +1,7 @@
+import {
+  catalogOptionRefSelect,
+  toOptionRef,
+} from '~/features/customers/api/customerCatalog.server';
 import { formatContactDate, parseContactDate } from '~/features/customers/api/customerDates.server';
 import {
   customerVisibilityWhere,
@@ -6,7 +10,7 @@ import {
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel } from '~/lib/error.server';
 
-import type { CaseType } from '~/features/customers/type';
+import type { CatalogOptionRef } from '~/features/catalog/type';
 import type {
   TodayDeposit,
   TodayOverdueCustomer,
@@ -118,7 +122,7 @@ async function readSchedule(
       receivedAmount: true,
       customerCase: {
         select: {
-          caseType: true,
+          caseType: { select: catalogOptionRefSelect },
           customer: { select: { id: true, name: true } },
         },
       },
@@ -126,7 +130,7 @@ async function readSchedule(
   });
   const overdueByCustomer = new Map<
     string,
-    { customerName: string; amount: number; caseType: CaseType }
+    { customerName: string; amount: number; caseType: CatalogOptionRef }
   >();
   const upcomingPayments: TodayUpcomingPayment[] = [];
   for (const row of rows) {
@@ -143,7 +147,7 @@ async function readSchedule(
         overdueByCustomer.set(customer.id, {
           customerName: customer.name,
           amount: remaining,
-          caseType: row.customerCase.caseType,
+          caseType: toOptionRef(row.customerCase.caseType),
         });
       }
       continue;

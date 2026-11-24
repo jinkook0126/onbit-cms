@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import { caseTypeLabels, installmentScheduleLabel } from '~/features/customers/type';
+import { installmentScheduleLabel } from '~/features/customers/type';
 import { ReceivableInstallmentDialog } from '~/features/receivables/components/ReceivableInstallmentDialog';
 import { ReceivablePaymentDialog } from '~/features/receivables/components/ReceivablePaymentDialog';
 import { ReceivablePlanDialog } from '~/features/receivables/components/ReceivablePlanDialog';
@@ -55,9 +55,7 @@ function CustomerSummary({ detail }: { detail: ReceivableDetail }): JSX.Element 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="grid gap-1">
           <h2 className="text-base font-semibold text-foreground">{detail.customer.name}</h2>
-          <p className="text-sm text-muted-foreground">
-            {caseTypeLabels[detail.customer.caseType]}
-          </p>
+          <p className="text-sm text-muted-foreground">{detail.customer.caseType.name}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ReceivablePlanDialog customerId={detail.customer.id} plans={detail.plans} />

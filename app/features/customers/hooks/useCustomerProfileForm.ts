@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { DEFAULT_STATUS_CODE } from '~/features/catalog/defaults';
+import { useCatalogList } from '~/features/catalog/hooks/useCatalogList';
 import {
   requestCustomerAssignees,
   requestCustomerCreate,
@@ -9,46 +11,49 @@ import {
 } from '~/features/customers/api/customerApi';
 import { customerQueryKeys } from '~/features/customers/api/customerQuery';
 import { defaultAssigneeId } from '~/features/customers/assigneeOption';
+import { toOptionRefs } from '~/features/customers/catalogOption';
 import {
   MAX_CUSTOMER_NAME_LENGTH,
   customerPhoneDigits,
-  isCaseType,
+  isRetainedStatus,
 } from '~/features/customers/type';
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ChangeEvent } from 'react';
+import type { CatalogOptionRef } from '~/features/catalog/type';
 import type {
-  CaseType,
-  ConsultationStatus,
   CustomerAssigneeResponse,
   CustomerDetail,
   CustomerProfileFieldErrors,
   CustomerProfileSubmission,
-  InflowSource,
 } from '~/features/customers/type';
 
 type CustomerProfileFormState = {
   name: string;
   phone: string;
-  source: InflowSource | '';
+  sourceId: string;
   assigneeId: string;
-  status: ConsultationStatus;
-  caseType: CaseType | '';
+  statusId: string;
+  caseTypeId: string;
   firstProcessedOn: string;
   contractedOn: string;
   retainerFee: string;
   statusLocked: boolean;
   retainFieldsEnabled: boolean;
   assignees: UseQueryResult<CustomerAssigneeResponse>;
+  sourceOptions: CatalogOptionRef[];
+  statusOptions: CatalogOptionRef[];
+  caseTypeOptions: CatalogOptionRef[];
+  catalogError: boolean;
   fieldErrors?: CustomerProfileFieldErrors;
   formError?: string;
   isSubmitting: boolean;
   changeName: (event: ChangeEvent<HTMLInputElement>) => void;
   changePhone: (event: ChangeEvent<HTMLInputElement>) => void;
-  changeSource: (source: InflowSource) => void;
+  changeSource: (sourceId: string) => void;
   changeAssignee: (assigneeId: string) => void;
-  changeStatus: (status: ConsultationStatus) => void;
-  changeCaseType: (caseType: CaseType) => void;
+  changeStatus: (statusId: string) => void;
+  changeCaseType: (caseTypeId: string) => void;
   changeFirstProcessedOn: (value: string) => void;
   changeContractedOn: (value: string) => void;
   changeRetainerFee: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -86,10 +91,12 @@ export function useCustomerProfileForm(
   const submitLock = useRef(false);
   const [name, setName] = useState(customer?.name ?? '');
   const [phone, setPhone] = useState(customer?.phone ?? '');
-  const [source, setSource] = useState<InflowSource | ''>(customer?.source ?? '');
-  const [assigneeOverride, setAssigneeOverride] = useState<string | null>(customer?.assigneeId ?? null);
-  const [status, setStatus] = useState<ConsultationStatus>(customer?.status ?? 'IN_CONSULTATION');
-  const [caseType, setCaseType] = useState<CaseType | ''>(customer?.caseType ?? '');
+  const [sourceId, setSourceId] = useState(customer?.source.id ?? '');
+  const [assigneeOverride, setAssigneeOverride] = useState<string | null>(
+    customer?.assigneeId ?? null,
+  );
+  const [statusOverride, setStatusOverride] = useState<string | null>(customer?.status.id ?? null);
+  const [caseTypeId, setCaseTypeId] = useState(customer?.caseType?.id ?? '');
   const [firstProcessedOn, setFirstProcessedOn] = useState(customer?.firstProcessedOn ?? '');
   const [contractedOn, setContractedOn] = useState(customer?.contractedOn ?? '');
   const [retainerFee, setRetainerFee] = useState(
@@ -101,6 +108,17 @@ export function useCustomerProfileForm(
     queryKey: customerQueryKeys.assignees(),
     queryFn: ({ signal }) => requestCustomerAssignees(signal),
   });
+  const sources = useCatalogList('inflow-sources', true);
+  const statuses = useCatalogList('consultation-statuses', true);
+  const caseTypes = useCatalogList('case-types', true);
+  const sourceOptions = toOptionRefs(sources.data?.items, customer?.source);
+  const statusOptions = toOptionRefs(statuses.data?.items, customer?.status);
+  const caseTypeOptions = toOptionRefs(caseTypes.data?.items, customer?.caseType);
+  const defaultStatusId = statusOptions.find((option) => option.code === DEFAULT_STATUS_CODE)?.id;
+  const statusId = statusOverride ?? (mode === 'create' ? (defaultStatusId ?? '') : '');
+  const retained = isRetainedStatus(
+    statusOptions.find((option) => option.id === statusId)?.code ?? null,
+  );
   const mutation = useMutation({
     mutationFn: (submission: CustomerProfileSubmission) =>
       mode === 'create' || customer === null
@@ -140,9 +158,10 @@ export function useCustomerProfileForm(
     assigneeId = defaultAssigneeId(assigneeOptions, assignees.data?.currentUserId);
   }
 
-  function changeStatus(nextStatus: ConsultationStatus): void {
-    setStatus(nextStatus);
-    if (nextStatus !== 'RETAINED') {
+  function changeStatus(nextStatusId: string): void {
+    setStatusOverride(nextStatusId);
+    const next = statusOptions.find((option) => option.id === nextStatusId);
+    if (!isRetainedStatus(next?.code ?? null)) {
       setContractedOn('');
       setRetainerFee('');
     }
@@ -153,14 +172,13 @@ export function useCustomerProfileForm(
       return;
     }
     submitLock.current = true;
-    const retained = status === 'RETAINED';
     mutation.mutate({
       name,
       phone,
-      source,
+      sourceId,
       assigneeId,
-      status,
-      caseType: caseType === '' ? null : caseType,
+      statusId,
+      caseTypeId: caseTypeId === '' ? null : caseTypeId,
       firstProcessedOn: firstProcessedOn.trim() === '' ? null : firstProcessedOn,
       contractedOn: retained && contractedOn.trim() !== '' ? contractedOn : null,
       retainerFee: retained && retainerFee.trim() !== '' ? retainerFee : null,
@@ -170,16 +188,20 @@ export function useCustomerProfileForm(
   return {
     name,
     phone,
-    source,
+    sourceId,
     assigneeId,
-    status,
-    caseType,
+    statusId,
+    caseTypeId,
     firstProcessedOn,
     contractedOn,
     retainerFee,
-    statusLocked: customer?.status === 'RETAINED',
-    retainFieldsEnabled: status === 'RETAINED',
+    statusLocked: isRetainedStatus(customer?.status.code ?? null),
+    retainFieldsEnabled: retained,
     assignees,
+    sourceOptions,
+    statusOptions,
+    caseTypeOptions,
+    catalogError: sources.isError || statuses.isError || caseTypes.isError,
     fieldErrors: response?.fieldErrors,
     formError: readFormError(mutation.isError, mode, response?.formError),
     isSubmitting: mutation.isPending,
@@ -189,14 +211,10 @@ export function useCustomerProfileForm(
     changePhone: (event) => {
       setPhone(customerPhoneDigits(event.currentTarget.value));
     },
-    changeSource: setSource,
+    changeSource: setSourceId,
     changeAssignee: setAssigneeOverride,
     changeStatus,
-    changeCaseType: (nextCaseType) => {
-      if (isCaseType(nextCaseType)) {
-        setCaseType(nextCaseType);
-      }
-    },
+    changeCaseType: setCaseTypeId,
     changeFirstProcessedOn: setFirstProcessedOn,
     changeContractedOn: setContractedOn,
     changeRetainerFee: (event) => {

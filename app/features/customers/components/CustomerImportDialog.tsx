@@ -9,8 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog';
+import { useCatalogList } from '~/features/catalog/hooks/useCatalogList';
 import { useCustomerImportForm } from '~/features/customers/hooks/useCustomerImportForm';
-import { formatCustomerPhone, inflowSourceLabels } from '~/features/customers/type';
+import { formatCustomerPhone } from '~/features/customers/type';
 import { sectionDescription } from '~/lib/styles';
 import { cn } from '~/lib/utils';
 
@@ -23,6 +24,13 @@ type OutsideEvent = {
 export function CustomerImportDialog(): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const sources = useCatalogList('inflow-sources', true);
+  let sourceNames = '불러오는 중';
+  if (sources.isSuccess) {
+    sourceNames = sources.data.items.map((source) => source.name).join(', ');
+  } else if (sources.isError) {
+    sourceNames = '불러오지 못했습니다';
+  }
   const {
     open,
     file,
@@ -106,9 +114,9 @@ export function CustomerImportDialog(): JSX.Element {
           <DialogHeader>
             <DialogTitle>엑셀 업로드</DialogTitle>
             <DialogDescription className={sectionDescription}>
-              템플릿의 이름, 연락처, 유입경로를 저장합니다. 담당은 미정이고 상담 상태는 상담중입니다.
-              같은 회사의 같은 이름과 연락처는 제외합니다. 유입경로는{' '}
-              {Object.values(inflowSourceLabels).join(', ')}입니다.
+              템플릿의 이름, 연락처, 유입경로를 저장합니다. 담당은 미정이고 상담 상태는
+              상담중입니다. 같은 회사의 같은 이름과 연락처는 제외합니다. 유입경로는 {sourceNames}
+              입니다.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">

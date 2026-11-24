@@ -1,3 +1,9 @@
+import { RETAINED_STATUS_CODE } from '~/features/catalog/defaults';
+import { isCatalogOptionRef } from '~/features/catalog/type';
+import { isUuid } from '~/lib/uuid';
+
+import type { CatalogOptionRef } from '~/features/catalog/type';
+
 export const CUSTOMER_PAGE_SIZE = 15;
 export const MAX_CUSTOMER_ASSIGNEE_BATCH = 100;
 export const MAX_CUSTOMER_KEYWORD_LENGTH = 50;
@@ -56,56 +62,14 @@ export function formatCustomerPhone(value: string): string {
   return splitPhone(digits, 3, 4);
 }
 
-export const consultationStatusLabels = {
-  IN_CONSULTATION: '상담중',
-  CONSIDERING: '고민중',
-  ABSENT: '부재',
-  REJECTED: '거절',
-  RETAINED: '수임',
-} as const;
-
-export const caseTypeLabels = {
-  PERSONAL_REHABILITATION: '개인회생',
-  PERSONAL_BANKRUPTCY: '개인파산',
-  PERSONAL_WORKOUT: '개인워크아웃',
-  FAST_DEBT_ADJUSTMENT: '신속채무조정',
-  FRESH_START_FUND: '새출발기금',
-  REHABILITATION_AND_CREDIT_RECOVERY: '개회+신복위',
-  OTHER: '기타',
-} as const;
-
-export const inflowSourceLabels = {
-  HOMEPAGE: '홈페이지',
-  NAVER: '네이버',
-  REFERRAL: '거래처 소개',
-  PHONE: '전화',
-  OTHER: '기타',
-} as const;
-
 export const customerSearchFieldLabels = {
   name: '이름',
   phone: '전화번호',
   assignee: '담당',
 } as const;
 
-export type ConsultationStatus = keyof typeof consultationStatusLabels;
-
-export const consultationStatusBadgeVariants = {
-  IN_CONSULTATION: 'default',
-  CONSIDERING: 'secondary',
-  ABSENT: 'outline',
-  REJECTED: 'destructive',
-  RETAINED: 'success',
-} as const satisfies Record<
-  ConsultationStatus,
-  'default' | 'secondary' | 'outline' | 'destructive' | 'success'
->;
-export type CaseType = keyof typeof caseTypeLabels;
-
-const caseTypes = Object.keys(caseTypeLabels);
-
-export function isCaseType(value: unknown): value is CaseType {
-  return typeof value === 'string' && caseTypes.includes(value);
+export function isRetainedStatus(code: string | null): boolean {
+  return code === RETAINED_STATUS_CODE;
 }
 
 export type CustomerSummary = {
@@ -115,17 +79,16 @@ export type CustomerSummary = {
   remainingRetainer: number;
   overdue: number;
 };
-export type InflowSource = keyof typeof inflowSourceLabels;
 export type CustomerSearchField = keyof typeof customerSearchFieldLabels;
 
 export type CustomerListItem = {
   id: string;
   name: string;
   phone: string;
-  source: InflowSource;
-  status: ConsultationStatus;
+  source: CatalogOptionRef;
+  status: CatalogOptionRef;
   assigneeName: string | null;
-  caseType: CaseType | null;
+  caseType: CatalogOptionRef | null;
   registeredOn: string;
   nextContactOn: string | null;
   firstProcessedOn: string | null;
@@ -138,11 +101,11 @@ export type CustomerDetail = {
   id: string;
   name: string;
   phone: string;
-  source: InflowSource;
+  source: CatalogOptionRef;
   assigneeId: string | null;
   assigneeName: string | null;
-  status: ConsultationStatus;
-  caseType: CaseType | null;
+  status: CatalogOptionRef;
+  caseType: CatalogOptionRef | null;
   registeredOn: string;
   firstProcessedOn: string | null;
   contractedOn: string | null;
@@ -180,8 +143,8 @@ export type CustomerListSort = {
 export type CustomerListParams = {
   field: CustomerSearchField;
   keyword: string;
-  status: ConsultationStatus | null;
-  source: InflowSource | null;
+  statusId: string | null;
+  sourceId: string | null;
   from: string;
   to: string;
   sort: CustomerListSort;
@@ -212,10 +175,10 @@ export type CustomerAssigneeBatchResponse = {
 export type CustomerProfileFieldErrors = {
   name?: string;
   phone?: string;
-  source?: string;
+  sourceId?: string;
   assigneeId?: string;
-  status?: string;
-  caseType?: string;
+  statusId?: string;
+  caseTypeId?: string;
   firstProcessedOn?: string;
   contractedOn?: string;
   retainerFee?: string;
@@ -224,10 +187,10 @@ export type CustomerProfileFieldErrors = {
 export type CustomerProfileSubmission = {
   name: string;
   phone: string;
-  source: string;
+  sourceId: string;
   assigneeId: string;
-  status: string;
-  caseType: string | null;
+  statusId: string;
+  caseTypeId: string | null;
   firstProcessedOn: string | null;
   contractedOn: string | null;
   retainerFee: string | null;
@@ -284,19 +247,12 @@ export type ConsultationCreateResponse = {
   formError?: string;
 };
 
-const consultationStatuses = Object.keys(consultationStatusLabels);
-const inflowSources = Object.keys(inflowSourceLabels);
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isConsultationStatus(value: unknown): value is ConsultationStatus {
-  return typeof value === 'string' && consultationStatuses.includes(value);
-}
-
-function isInflowSource(value: unknown): value is InflowSource {
-  return typeof value === 'string' && inflowSources.includes(value);
+function isNullableOptionRef(value: unknown): boolean {
+  return value === null || isCatalogOptionRef(value);
 }
 
 function isNullableString(value: unknown): boolean {
@@ -311,10 +267,10 @@ function isCustomerListItem(value: unknown): value is CustomerListItem {
     typeof value.id === 'string' &&
     typeof value.name === 'string' &&
     typeof value.phone === 'string' &&
-    isInflowSource(value.source) &&
-    isConsultationStatus(value.status) &&
+    isCatalogOptionRef(value.source) &&
+    isCatalogOptionRef(value.status) &&
     isNullableString(value.assigneeName) &&
-    (value.caseType === null || isCaseType(value.caseType)) &&
+    isNullableOptionRef(value.caseType) &&
     typeof value.registeredOn === 'string' &&
     isNullableString(value.nextContactOn) &&
     isNullableString(value.firstProcessedOn) &&
@@ -332,11 +288,11 @@ export function isCustomerDetail(value: unknown): value is CustomerDetail {
     typeof value.id === 'string' &&
     typeof value.name === 'string' &&
     typeof value.phone === 'string' &&
-    isInflowSource(value.source) &&
+    isCatalogOptionRef(value.source) &&
     isNullableString(value.assigneeId) &&
     isNullableString(value.assigneeName) &&
-    isConsultationStatus(value.status) &&
-    (value.caseType === null || isCaseType(value.caseType)) &&
+    isCatalogOptionRef(value.status) &&
+    isNullableOptionRef(value.caseType) &&
     typeof value.registeredOn === 'string' &&
     isNullableString(value.firstProcessedOn) &&
     isNullableString(value.contractedOn) &&
@@ -346,26 +302,26 @@ export function isCustomerDetail(value: unknown): value is CustomerDetail {
 }
 
 export type CustomerStatusSubmission = {
-  status: ConsultationStatus;
+  statusId: string;
 };
 
 export type CustomerCaseTypeSubmission = {
-  caseType: CaseType;
+  caseTypeId: string;
 };
 
 export type CustomerCaseTypeResponse = {
-  caseType?: CaseType;
+  caseType?: CatalogOptionRef;
   formError?: string;
 };
 
 export type CustomerStatusResponse = {
-  status?: ConsultationStatus;
+  status?: CatalogOptionRef;
   formError?: string;
 };
 
 export type CustomerRetainFieldErrors = {
   contractedOn?: string;
-  caseType?: string;
+  caseTypeId?: string;
   retainerFee?: string;
   deposit?: string;
   installmentCount?: string;
@@ -374,7 +330,7 @@ export type CustomerRetainFieldErrors = {
 
 export type CustomerRetainSubmission = {
   contractedOn: string;
-  caseType: string;
+  caseTypeId: string;
   retainerFee: string;
   deposit: string;
   installmentCount: string;
@@ -382,17 +338,17 @@ export type CustomerRetainSubmission = {
 };
 
 export type CustomerRetainResponse = {
-  status?: ConsultationStatus;
+  status?: CatalogOptionRef;
   fieldErrors?: CustomerRetainFieldErrors;
   formError?: string;
 };
 
 export function isCustomerStatusSubmission(value: unknown): value is CustomerStatusSubmission {
-  return isRecord(value) && isConsultationStatus(value.status);
+  return isRecord(value) && typeof value.statusId === 'string';
 }
 
 export function isCustomerCaseTypeSubmission(value: unknown): value is CustomerCaseTypeSubmission {
-  return isRecord(value) && isCaseType(value.caseType);
+  return isRecord(value) && typeof value.caseTypeId === 'string';
 }
 
 export function isCustomerCaseTypeResponse(value: unknown): value is CustomerCaseTypeResponse {
@@ -402,7 +358,7 @@ export function isCustomerCaseTypeResponse(value: unknown): value is CustomerCas
   if (value.formError !== undefined && typeof value.formError !== 'string') {
     return false;
   }
-  return value.caseType === undefined || isCaseType(value.caseType);
+  return value.caseType === undefined || isCatalogOptionRef(value.caseType);
 }
 
 export function isCustomerStatusResponse(value: unknown): value is CustomerStatusResponse {
@@ -412,7 +368,7 @@ export function isCustomerStatusResponse(value: unknown): value is CustomerStatu
   if (value.formError !== undefined && typeof value.formError !== 'string') {
     return false;
   }
-  return value.status === undefined || isConsultationStatus(value.status);
+  return value.status === undefined || isCatalogOptionRef(value.status);
 }
 
 function isCustomerReminder(value: unknown): value is CustomerReminder {
@@ -450,10 +406,10 @@ export function isCustomerListResponse(value: unknown): value is CustomerListRes
 const customerProfileErrorKeys = [
   'name',
   'phone',
-  'source',
+  'sourceId',
   'assigneeId',
-  'status',
-  'caseType',
+  'statusId',
+  'caseTypeId',
   'firstProcessedOn',
   'contractedOn',
   'retainerFee',
@@ -521,10 +477,10 @@ export function isCustomerProfileSubmission(value: unknown): value is CustomerPr
   return (
     typeof value.name === 'string' &&
     typeof value.phone === 'string' &&
-    typeof value.source === 'string' &&
+    typeof value.sourceId === 'string' &&
     typeof value.assigneeId === 'string' &&
-    typeof value.status === 'string' &&
-    (value.caseType === null || typeof value.caseType === 'string') &&
+    typeof value.statusId === 'string' &&
+    isNullableString(value.caseTypeId) &&
     (value.firstProcessedOn === null || typeof value.firstProcessedOn === 'string') &&
     (value.contractedOn === null || typeof value.contractedOn === 'string') &&
     (value.retainerFee === null || typeof value.retainerFee === 'string')
@@ -655,7 +611,7 @@ export function isCustomerImportResponse(value: unknown): value is CustomerImpor
 
 const customerRetainErrorKeys = [
   'contractedOn',
-  'caseType',
+  'caseTypeId',
   'retainerFee',
   'deposit',
   'installmentCount',
@@ -682,7 +638,7 @@ export function isCustomerRetainResponse(value: unknown): value is CustomerRetai
   if (!isRecord(value)) {
     return false;
   }
-  if (value.status !== undefined && !isConsultationStatus(value.status)) {
+  if (value.status !== undefined && !isCatalogOptionRef(value.status)) {
     return false;
   }
   if (value.formError !== undefined && typeof value.formError !== 'string') {
@@ -1094,30 +1050,16 @@ export function seoulMonthStart(today = seoulCalendarToday()): string {
   return `${today.slice(0, 7)}-01`;
 }
 
-export function isInflowSourceParam(value: string | null): boolean {
-  return value === null || value === 'all' || isInflowSource(value);
+export function isCatalogOptionParam(value: string | null): boolean {
+  return value === null || value === 'all' || isUuid(value);
 }
 
-export function parseInflowSource(value: string | null): InflowSource | null {
+export function parseCatalogOptionParam(value: string | null): string | null {
   if (value === null || value === 'all') {
     return null;
   }
-  if (isInflowSource(value)) {
+  if (isUuid(value)) {
     return value;
   }
   return null;
-}
-
-export function parseConsultationStatus(value: string | null): ConsultationStatus | null {
-  if (value === null || value === 'all') {
-    return null;
-  }
-  if (isConsultationStatus(value)) {
-    return value;
-  }
-  return null;
-}
-
-export function isConsultationStatusParam(value: string | null): boolean {
-  return value === null || value === 'all' || isConsultationStatus(value);
 }

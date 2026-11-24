@@ -8,6 +8,7 @@ const INVALID_REQUEST_MESSAGE = '사건 유형을 처리하지 못했습니다. 
 const UNAUTHENTICATED_MESSAGE = '다시 로그인하세요.';
 const FORBIDDEN_MESSAGE = '사건 유형을 변경할 권한이 없습니다.';
 const NOT_FOUND_MESSAGE = '상담 고객을 찾을 수 없습니다.';
+const INVALID_CASE_TYPE_MESSAGE = '선택할 수 없는 사건 유형입니다. 다시 선택하세요.';
 const MISSING_CASE_MESSAGE = '수임 후에 사건 유형을 바꿀 수 있습니다.';
 const UPDATE_FAILED_MESSAGE = '사건 유형을 변경하지 못했습니다. 다시 시도하세요.';
 
@@ -33,11 +34,13 @@ export async function action({ request, params }: Route.ActionArgs): Promise<Res
   const { result, headers } = await updateCustomerCaseType(
     request,
     params.customerId,
-    payload.caseType,
+    payload.caseTypeId,
   );
   switch (result.status) {
     case 'ok':
       return jsonResponse({ caseType: result.caseType }, 200, headers);
+    case 'invalid':
+      return jsonResponse({ formError: INVALID_CASE_TYPE_MESSAGE }, 400, headers);
     case 'anonymous':
       return jsonResponse({ formError: UNAUTHENTICATED_MESSAGE }, 401, headers);
     case 'forbidden':

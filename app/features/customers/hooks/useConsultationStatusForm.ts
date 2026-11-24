@@ -2,17 +2,22 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { useCatalogList } from '~/features/catalog/hooks/useCatalogList';
 import { requestCustomerStatusUpdate } from '~/features/customers/api/customerApi';
 import { customerQueryKeys, replaceCustomerDetail } from '~/features/customers/api/customerQuery';
+import { toOptionRefs } from '~/features/customers/catalogOption';
+import { isRetainedStatus } from '~/features/customers/type';
 
-import type { ConsultationStatus, CustomerStatusSubmission } from '~/features/customers/type';
+import type { CatalogOptionRef } from '~/features/catalog/type';
+import type { CustomerStatusSubmission } from '~/features/customers/type';
 
 type ConsultationStatusFormState = {
-  status: ConsultationStatus;
+  statusId: string;
+  statusOptions: CatalogOptionRef[];
   isDirty: boolean;
   formError?: string;
   isSubmitting: boolean;
-  changeStatus: (status: ConsultationStatus) => void;
+  changeStatus: (statusId: string) => void;
   saveStatus: () => void;
 };
 
@@ -20,11 +25,12 @@ const transportErrorMessage = '상담 상태를 변경하지 못했습니다. �
 
 export function useConsultationStatusForm(
   customerId: string,
-  savedStatus: ConsultationStatus,
+  savedStatus: CatalogOptionRef,
 ): ConsultationStatusFormState {
   const queryClient = useQueryClient();
   const submitLock = useRef(false);
-  const [draft, setDraft] = useState<ConsultationStatus | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const statuses = useCatalogList('consultation-statuses', true);
   const mutation = useMutation({
     mutationFn: (submission: CustomerStatusSubmission) =>
       requestCustomerStatusUpdate(customerId, submission),
@@ -42,32 +48,34 @@ export function useConsultationStatusForm(
     },
   });
   const response = mutation.isError ? undefined : mutation.data;
-  const status = savedStatus === 'RETAINED' ? savedStatus : (draft ?? savedStatus);
+  const retained = isRetainedStatus(savedStatus.code);
+  const statusId = retained ? savedStatus.id : (draft ?? savedStatus.id);
 
-  function changeStatus(nextStatus: ConsultationStatus): void {
-    if (mutation.isPending || savedStatus === 'RETAINED') {
+  function changeStatus(nextStatusId: string): void {
+    if (mutation.isPending || retained) {
       return;
     }
-    setDraft(nextStatus === savedStatus ? null : nextStatus);
+    setDraft(nextStatusId === savedStatus.id ? null : nextStatusId);
   }
 
   function saveStatus(): void {
     if (
       submitLock.current ||
       mutation.isPending ||
-      savedStatus === 'RETAINED' ||
+      retained ||
       draft === null ||
-      draft === savedStatus
+      draft === savedStatus.id
     ) {
       return;
     }
     submitLock.current = true;
-    mutation.mutate({ status: draft });
+    mutation.mutate({ statusId: draft });
   }
 
   return {
-    status,
-    isDirty: status !== savedStatus,
+    statusId,
+    statusOptions: toOptionRefs(statuses.data?.items, savedStatus),
+    isDirty: statusId !== savedStatus.id,
     formError: mutation.isError ? transportErrorMessage : response?.formError,
     isSubmitting: mutation.isPending,
     changeStatus,

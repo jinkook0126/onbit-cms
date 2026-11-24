@@ -19,15 +19,13 @@ import { useCustomerFavorite } from '~/features/customers/hooks/useCustomerFavor
 import { useCustomerList } from '~/features/customers/hooks/useCustomerList';
 import {
   customerPhoneDigits,
-  isConsultationStatusParam,
-  isInflowSourceParam,
-  parseConsultationStatus,
+  isCatalogOptionParam,
+  parseCatalogOptionParam,
   parseCustomerDate,
   parseCustomerListView,
   parseCustomerSearchField,
   parseCustomerSortDirection,
   parseCustomerSortField,
-  parseInflowSource,
   seoulCalendarToday,
   seoulMonthStart,
 } from '~/features/customers/type';
@@ -38,11 +36,9 @@ import type { RowSelectionState } from '@tanstack/react-table';
 import type { JSX } from 'react';
 import type { CustomerSearchValues } from '~/features/customers/components/CustomerSearchForm';
 import type {
-  ConsultationStatus,
   CustomerListParams,
   CustomerListSort,
   CustomerListView,
-  InflowSource,
 } from '~/features/customers/type';
 
 function selectedCustomerIds(selection: RowSelectionState): string[] {
@@ -71,8 +67,8 @@ function readPage(value: string | null): number {
 const emptyListParams: CustomerListParams = {
   field: 'name',
   keyword: '',
-  status: null,
-  source: null,
+  statusId: null,
+  sourceId: null,
   from: '',
   to: '',
   sort: { field: 'registered', direction: 'desc' },
@@ -101,22 +97,21 @@ function readListParams(
     sortField === null ||
     sortDirection === null ||
     view === null ||
-    !isInflowSourceParam(sourceParam) ||
-    !isConsultationStatusParam(statusParam)
+    !isCatalogOptionParam(sourceParam) ||
+    !isCatalogOptionParam(statusParam)
   ) {
     return { valid: false };
   }
   if (from !== '' && to !== '' && from > to) {
     return { valid: false };
   }
-  const status = parseConsultationStatus(statusParam);
   return {
     valid: true,
     params: {
       field,
       keyword: searchParams.get('q') ?? '',
-      status,
-      source: parseInflowSource(sourceParam),
+      statusId: parseCatalogOptionParam(statusParam),
+      sourceId: parseCatalogOptionParam(sourceParam),
       from,
       to,
       sort: { field: sortField, direction: sortDirection },
@@ -169,23 +164,23 @@ export function CustomerListPage(): JSX.Element {
     });
   }
 
-  function changeSource(nextSource: InflowSource | null): void {
+  function changeSource(nextSourceId: string | null): void {
     replaceParams((params) => {
-      if (nextSource === null) {
+      if (nextSourceId === null) {
         params.delete('source');
       } else {
-        params.set('source', nextSource);
+        params.set('source', nextSourceId);
       }
       params.delete('page');
     });
   }
 
-  function changeStatus(nextStatus: ConsultationStatus | null): void {
+  function changeStatus(nextStatusId: string | null): void {
     replaceParams((params) => {
-      if (nextStatus === null) {
+      if (nextStatusId === null) {
         params.delete('status');
       } else {
-        params.set('status', nextStatus);
+        params.set('status', nextStatusId);
       }
       params.delete('page');
     });
@@ -246,8 +241,8 @@ export function CustomerListPage(): JSX.Element {
 
   const hasFilter =
     listParams.keyword.trim() !== '' ||
-    listParams.status !== null ||
-    listParams.source !== null ||
+    listParams.statusId !== null ||
+    listParams.sourceId !== null ||
     listParams.from !== '' ||
     listParams.to !== '';
   let emptyMessage = '등록된 상담 고객이 없습니다.';
@@ -300,8 +295,8 @@ export function CustomerListPage(): JSX.Element {
           values={listParams}
           onSearch={searchCustomers}
         />
-        <CustomerStatusFilter status={listParams.status} onStatusChange={changeStatus} />
-        <CustomerSourceFilter source={listParams.source} onSourceChange={changeSource} />
+        <CustomerStatusFilter statusId={listParams.statusId} onStatusChange={changeStatus} />
+        <CustomerSourceFilter sourceId={listParams.sourceId} onSourceChange={changeSource} />
       </section>
       <section className="grid gap-3">
         <div className="flex items-center justify-between gap-2">

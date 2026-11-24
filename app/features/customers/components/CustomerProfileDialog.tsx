@@ -20,36 +20,12 @@ import {
 } from '~/components/ui/select';
 import { CustomerNextContactField } from '~/features/customers/components/CustomerNextContactField';
 import { useCustomerProfileForm } from '~/features/customers/hooks/useCustomerProfileForm';
-import {
-  MAX_CUSTOMER_NAME_LENGTH,
-  MAX_CUSTOMER_PHONE_LENGTH,
-  caseTypeLabels,
-  consultationStatusLabels,
-  inflowSourceLabels,
-  isCaseType,
-} from '~/features/customers/type';
+import { MAX_CUSTOMER_NAME_LENGTH, MAX_CUSTOMER_PHONE_LENGTH } from '~/features/customers/type';
 import { readQueryError } from '~/lib/formError';
 import { fieldLabel } from '~/lib/styles';
 
 import type { JSX, SubmitEvent } from 'react';
-import type {
-  CaseType,
-  ConsultationStatus,
-  CustomerDetail,
-  InflowSource,
-} from '~/features/customers/type';
-
-const sources = Object.keys(inflowSourceLabels) as InflowSource[];
-const statuses = Object.keys(consultationStatusLabels) as ConsultationStatus[];
-const caseTypes = Object.keys(caseTypeLabels) as CaseType[];
-
-function isInflowSource(value: string): value is InflowSource {
-  return sources.some((source) => source === value);
-}
-
-function isConsultationStatus(value: string): value is ConsultationStatus {
-  return statuses.some((status) => status === value);
-}
+import type { CustomerDetail } from '~/features/customers/type';
 
 type OutsideEvent = {
   preventDefault: () => void;
@@ -145,95 +121,83 @@ function CustomerProfileForm({
             유입처
           </Label>
           <Select
-            value={form.source === '' ? undefined : form.source}
+            value={form.sourceId === '' ? undefined : form.sourceId}
             disabled={form.isSubmitting}
-            onValueChange={(value) => {
-              if (isInflowSource(value)) {
-                form.changeSource(value);
-              }
-            }}
+            onValueChange={form.changeSource}
           >
             <SelectTrigger
               id={`${idPrefix}-source`}
               className="w-full"
-              aria-invalid={form.fieldErrors?.source ? true : undefined}
-              aria-describedby={form.fieldErrors?.source ? `${idPrefix}-source-error` : undefined}
+              aria-invalid={form.fieldErrors?.sourceId ? true : undefined}
+              aria-describedby={form.fieldErrors?.sourceId ? `${idPrefix}-source-error` : undefined}
             >
               <SelectValue placeholder="유입처를 선택하세요" />
             </SelectTrigger>
             <SelectContent>
-              {sources.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {inflowSourceLabels[item]}
+              {form.sourceOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <FieldError id={`${idPrefix}-source-error`} message={form.fieldErrors?.source} />
+          <FieldError id={`${idPrefix}-source-error`} message={form.fieldErrors?.sourceId} />
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${idPrefix}-case-type`} className={fieldLabel}>
             사건 유형
           </Label>
           <Select
-            value={form.caseType === '' ? undefined : form.caseType}
+            value={form.caseTypeId === '' ? undefined : form.caseTypeId}
             disabled={form.isSubmitting}
-            onValueChange={(value) => {
-              if (isCaseType(value)) {
-                form.changeCaseType(value);
-              }
-            }}
+            onValueChange={form.changeCaseType}
           >
             <SelectTrigger
               id={`${idPrefix}-case-type`}
               className="w-full"
-              aria-invalid={form.fieldErrors?.caseType ? true : undefined}
+              aria-invalid={form.fieldErrors?.caseTypeId ? true : undefined}
               aria-describedby={
-                form.fieldErrors?.caseType ? `${idPrefix}-case-type-error` : undefined
+                form.fieldErrors?.caseTypeId ? `${idPrefix}-case-type-error` : undefined
               }
             >
               <SelectValue placeholder="사건 유형을 선택하세요" />
             </SelectTrigger>
             <SelectContent>
-              {caseTypes.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {caseTypeLabels[item]}
+              {form.caseTypeOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <FieldError id={`${idPrefix}-case-type-error`} message={form.fieldErrors?.caseType} />
+          <FieldError id={`${idPrefix}-case-type-error`} message={form.fieldErrors?.caseTypeId} />
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${idPrefix}-status`} className={fieldLabel}>
             상담상태
           </Label>
           <Select
-            value={form.status}
+            value={form.statusId === '' ? undefined : form.statusId}
             disabled={form.isSubmitting || form.statusLocked}
-            onValueChange={(value) => {
-              if (isConsultationStatus(value)) {
-                form.changeStatus(value);
-              }
-            }}
+            onValueChange={form.changeStatus}
           >
             <SelectTrigger
               id={`${idPrefix}-status`}
               className="w-full"
-              aria-invalid={form.fieldErrors?.status ? true : undefined}
-              aria-describedby={form.fieldErrors?.status ? `${idPrefix}-status-error` : undefined}
+              aria-invalid={form.fieldErrors?.statusId ? true : undefined}
+              aria-describedby={form.fieldErrors?.statusId ? `${idPrefix}-status-error` : undefined}
             >
               <SelectValue placeholder="상담 상태를 선택하세요" />
             </SelectTrigger>
             <SelectContent>
-              {statuses.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {consultationStatusLabels[item]}
+              {form.statusOptions.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <FieldError id={`${idPrefix}-status-error`} message={form.fieldErrors?.status} />
+          <FieldError id={`${idPrefix}-status-error`} message={form.fieldErrors?.statusId} />
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${idPrefix}-assignee`} className={fieldLabel}>
@@ -309,6 +273,11 @@ function CustomerProfileForm({
             message={form.fieldErrors?.retainerFee}
           />
         </div>
+        {form.catalogError ? (
+          <p className="text-sm text-destructive sm:col-span-2" role="alert">
+            유입처, 사건 유형, 상담 상태 목록을 불러오지 못했습니다. 다시 시도하세요.
+          </p>
+        ) : null}
         {form.formError ? (
           <p className="text-sm text-destructive sm:col-span-2" role="alert">
             {form.formError}

@@ -1,33 +1,30 @@
 import { Label } from '~/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group';
-import { consultationStatusLabels } from '~/features/customers/type';
+import { useCatalogList } from '~/features/catalog/hooks/useCatalogList';
 import { fieldLabel } from '~/lib/styles';
 
 import type { JSX } from 'react';
-import type { ConsultationStatus } from '~/features/customers/type';
 
 type CustomerStatusFilterProps = {
-  status: ConsultationStatus | null;
-  onStatusChange: (status: ConsultationStatus | null) => void;
+  statusId: string | null;
+  onStatusChange: (statusId: string | null) => void;
 };
 
-const statuses = Object.keys(consultationStatusLabels) as ConsultationStatus[];
 const allStatuses = 'all';
 
-function isListedStatus(value: string): value is ConsultationStatus {
-  return statuses.some((item) => item === value);
-}
-
 export function CustomerStatusFilter({
-  status,
+  statusId,
   onStatusChange,
 }: CustomerStatusFilterProps): JSX.Element {
+  const statuses = useCatalogList('consultation-statuses');
+  const items = statuses.data?.items ?? [];
+
   function handleChange(value: string): void {
     if (value === allStatuses) {
       onStatusChange(null);
       return;
     }
-    if (isListedStatus(value)) {
+    if (items.some((item) => item.id === value)) {
       onStatusChange(value);
     }
   }
@@ -39,7 +36,7 @@ export function CustomerStatusFilter({
       </p>
       <RadioGroup
         aria-labelledby="customer-status-label"
-        value={status ?? allStatuses}
+        value={statusId ?? allStatuses}
         className="flex flex-wrap gap-x-4 gap-y-2"
         onValueChange={handleChange}
       >
@@ -47,14 +44,14 @@ export function CustomerStatusFilter({
           <RadioGroupItem id="customer-status-all" value={allStatuses} />
           전체
         </Label>
-        {statuses.map((item) => (
+        {items.map((item) => (
           <Label
-            key={item}
-            htmlFor={`customer-status-${item}`}
+            key={item.id}
+            htmlFor={`customer-status-${item.id}`}
             className="gap-3 font-normal text-foreground"
           >
-            <RadioGroupItem id={`customer-status-${item}`} value={item} />
-            {consultationStatusLabels[item]}
+            <RadioGroupItem id={`customer-status-${item.id}`} value={item.id} />
+            {item.name}
           </Label>
         ))}
       </RadioGroup>

@@ -8,35 +8,28 @@ import {
   SelectValue,
 } from '~/components/ui/select';
 import { useConsultationStatusForm } from '~/features/customers/hooks/useConsultationStatusForm';
-import { consultationStatusLabels } from '~/features/customers/type';
+import { isRetainedStatus } from '~/features/customers/type';
 import { fieldLabel } from '~/lib/styles';
 
 import type { JSX, SubmitEvent } from 'react';
-import type { ConsultationStatus } from '~/features/customers/type';
+import type { CatalogOptionRef } from '~/features/catalog/type';
 
 type ConsultationStatusFormProps = {
   customerId: string;
-  status: ConsultationStatus;
+  status: CatalogOptionRef;
 };
-
-const editableStatuses = (Object.keys(consultationStatusLabels) as ConsultationStatus[]).filter(
-  (item) => item !== 'RETAINED',
-);
-
-function isEditableStatus(value: string): value is ConsultationStatus {
-  return editableStatuses.some((item) => item === value);
-}
 
 export function ConsultationStatusForm({
   customerId,
   status,
 }: ConsultationStatusFormProps): JSX.Element {
   const form = useConsultationStatusForm(customerId, status);
-  const retained = status === 'RETAINED';
+  const retained = isRetainedStatus(status.code);
+  const editableStatuses = form.statusOptions.filter((item) => !isRetainedStatus(item.code));
   const errorId = 'consultation-tab-status-error';
 
   function handleStatusChange(value: string): void {
-    if (isEditableStatus(value)) {
+    if (editableStatuses.some((item) => item.id === value)) {
       form.changeStatus(value);
     }
   }
@@ -53,7 +46,7 @@ export function ConsultationStatusForm({
           상담 상태
         </Label>
         <Select
-          value={form.status}
+          value={form.statusId}
           disabled={retained || form.isSubmitting}
           onValueChange={handleStatusChange}
         >
@@ -67,13 +60,13 @@ export function ConsultationStatusForm({
           </SelectTrigger>
           <SelectContent>
             {editableStatuses.map((item) => (
-              <SelectItem key={item} value={item}>
-                {consultationStatusLabels[item]}
+              <SelectItem key={item.id} value={item.id}>
+                {item.name}
               </SelectItem>
             ))}
-            {status === 'RETAINED' ? (
-              <SelectItem value="RETAINED" disabled>
-                {consultationStatusLabels.RETAINED}
+            {retained ? (
+              <SelectItem value={status.id} disabled>
+                {status.name}
               </SelectItem>
             ) : null}
           </SelectContent>

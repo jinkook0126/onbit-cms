@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs';
 
+import { DEFAULT_STATUS_CODE } from '~/features/catalog/defaults';
+import { findCompanyStatusByCode } from '~/features/customers/api/customerCatalog.server';
 import {
   customerIdentityKey,
   readTakenCustomerKeys,
@@ -11,17 +13,13 @@ import {
   MAX_CUSTOMER_NAME_LENGTH,
   MAX_CUSTOMER_PHONE_LENGTH,
   MIN_CUSTOMER_PHONE_LENGTH,
-  inflowSourceLabels,
 } from '~/features/customers/type';
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel } from '~/lib/error.server';
 
-import type { CellValue, DataValidation, Worksheet } from 'exceljs';
-import type {
-  CustomerImportDuplicate,
-  CustomerImportRowError,
-  InflowSource,
-} from '~/features/customers/type';
+import type { CellValue, DataValidation, Workbook, Worksheet } from 'exceljs';
+import type { CatalogOptionRef } from '~/features/catalog/type';
+import type { CustomerImportDuplicate, CustomerImportRowError } from '~/features/customers/type';
 
 const TEMPLATE_HEADERS = ['이름', '연락처', '유입경로'] as const;
 const MAX_ROW_ERRORS = 20;
@@ -30,7 +28,10 @@ const NAME_TOO_LONG_MESSAGE = `이름은 ${MAX_CUSTOMER_NAME_LENGTH}자 이하�
 const PHONE_REQUIRED_MESSAGE = '연락처를 입력하세요.';
 const PHONE_INVALID_MESSAGE = `연락처는 숫자 ${MIN_CUSTOMER_PHONE_LENGTH}자 이상 ${MAX_CUSTOMER_PHONE_LENGTH}자 이하로 입력하세요.`;
 const SOURCE_REQUIRED_MESSAGE = '유입경로를 입력하세요.';
-const SOURCE_INVALID_MESSAGE = `유입경로는 ${Object.values(inflowSourceLabels).join(', ')} 중에서 입력하세요.`;
+const SOURCE_UNAVAILABLE_MESSAGE =
+  '사용할 수 있는 유입처가 없습니다. 유입처관리에서 먼저 등록하세요.';
+const STATUS_UNAVAILABLE_MESSAGE = '기본 상담 상태(상담중)를 찾을 수 없습니다.';
+const SOURCE_SHEET_NAME = '유입경로';
 const HEADER_MESSAGE = '템플릿의 이름, 연락처, 유입경로 열을 사용하세요.';
 const EMPTY_MESSAGE = '등록할 고객이 없습니다.';
 const TOO_MANY_ROWS_MESSAGE = `한 번에 ${MAX_CUSTOMER_IMPORT_ROWS}명까지 등록할 수 있습니다.`;
@@ -54,26 +55,29 @@ type ImportCustomer = {
   row: number;
   name: string;
   phone: string;
-  source: InflowSource;
+  sourceId: string;
 };
 
-const inflowSources = Object.keys(inflowSourceLabels);
+type SourceOption = Pick<CatalogOptionRef, 'id' | 'name' | 'code'>;
 
-function isInflowSource(value: string): value is InflowSource {
-  return inflowSources.includes(value);
+function sourceInvalidMessage(sources: SourceOption[]): string {
+  return `유입경로는 ${sources.map((source) => source.name).join(', ')} 중에서 입력하세요.`;
 }
 
-function sourceFromCell(value: string): InflowSource | null {
-  const match = (Object.entries(inflowSourceLabels) as [InflowSource, string][]).find(
-    ([, label]) => label === value,
+function sourceFromCell(value: string, sources: SourceOption[]): SourceOption | null {
+  return (
+    sources.find((source) => source.name === value) ??
+    sources.find((source) => source.code !== null && source.code === value) ??
+    null
   );
-  if (match) {
-    return match[0];
-  }
-  if (isInflowSource(value)) {
-    return value;
-  }
-  return null;
+}
+
+async function readActiveSources(companyId: string): Promise<SourceOption[]> {
+  return prisma.inflowSourceOption.findMany({
+    where: { companyId, isActive: true },
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    select: { id: true, name: true, code: true },
+  });
 }
 
 function cellText(value: CellValue): string {
@@ -115,14 +119,20 @@ function toArrayBuffer(value: Uint8Array | ArrayBuffer): ArrayBuffer {
   return copy;
 }
 
-function addSourceList(sheet: Worksheet): void {
+function addSourceList(workbook: Workbook, sheet: Worksheet, sources: SourceOption[]): void {
+  const sourceSheet = workbook.addWorksheet(SOURCE_SHEET_NAME);
+  sourceSheet.columns = [{ header: SOURCE_SHEET_NAME, width: 24 }];
+  sourceSheet.getRow(1).font = { bold: true };
+  sources.forEach((source, index) => {
+    sourceSheet.getCell(index + 2, 1).value = source.name;
+  });
   const validation: DataValidation = {
     type: 'list',
     allowBlank: true,
-    formulae: [`"${Object.values(inflowSourceLabels).join(',')}"`],
+    formulae: [`'${SOURCE_SHEET_NAME}'!$A$2:$A$${sources.length + 1}`],
     showErrorMessage: true,
     errorTitle: '유입경로',
-    error: SOURCE_INVALID_MESSAGE,
+    error: sourceInvalidMessage(sources),
   };
   const worksheet = sheet as Worksheet & {
     dataValidations: { add: (address: string, rule: DataValidation) => void };
@@ -140,6 +150,7 @@ export async function readCustomerImportTemplate(request: Request): Promise<{
   }
 
   try {
+    const sources = await readActiveSources(actor.companyId);
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('상담 고객');
     sheet.columns = [
@@ -150,7 +161,9 @@ export async function readCustomerImportTemplate(request: Request): Promise<{
     sheet.getRow(1).font = { bold: true };
     sheet.getColumn(2).numFmt = '@';
     sheet.views = [{ state: 'frozen', ySplit: 1 }];
-    addSourceList(sheet);
+    if (sources.length > 0) {
+      addSourceList(workbook, sheet, sources);
+    }
     const buffer = await workbook.xlsx.writeBuffer();
     return { result: { status: 'ok', body: toArrayBuffer(buffer) }, headers };
   } catch (error) {
@@ -159,7 +172,10 @@ export async function readCustomerImportTemplate(request: Request): Promise<{
   }
 }
 
-function readImportRows(sheet: Worksheet): {
+function readImportRows(
+  sheet: Worksheet,
+  sources: SourceOption[],
+): {
   customers: ImportCustomer[];
   formError?: string;
   rowErrors: CustomerImportRowError[];
@@ -200,11 +216,11 @@ function readImportRows(sheet: Worksheet): {
     ) {
       messages.push(PHONE_INVALID_MESSAGE);
     }
-    const source = sourceFromCell(sourceText);
+    const source = sourceFromCell(sourceText, sources);
     if (sourceText.length < 1) {
       messages.push(SOURCE_REQUIRED_MESSAGE);
     } else if (source === null) {
-      messages.push(SOURCE_INVALID_MESSAGE);
+      messages.push(sourceInvalidMessage(sources));
     }
     if (messages.length > 0) {
       errorRows += 1;
@@ -216,7 +232,7 @@ function readImportRows(sheet: Worksheet): {
     if (source === null) {
       continue;
     }
-    customers.push({ row: rowNumber, name, phone, source });
+    customers.push({ row: rowNumber, name, phone, sourceId: source.id });
   }
 
   if (dataRows === 0) {
@@ -273,7 +289,15 @@ export async function importCustomers(
       return { result: { status: 'invalid', formError: FILE_INVALID_MESSAGE }, headers };
     }
     const sheet = workbook.worksheets[0];
-    const parsed = readImportRows(sheet);
+    const sources = await readActiveSources(actor.companyId);
+    if (sources.length === 0) {
+      return { result: { status: 'invalid', formError: SOURCE_UNAVAILABLE_MESSAGE }, headers };
+    }
+    const status = await findCompanyStatusByCode(actor.companyId, DEFAULT_STATUS_CODE);
+    if (!status) {
+      return { result: { status: 'invalid', formError: STATUS_UNAVAILABLE_MESSAGE }, headers };
+    }
+    const parsed = readImportRows(sheet, sources);
     if (parsed.formError || parsed.rowErrors.length > 0) {
       return {
         result: {
@@ -293,7 +317,8 @@ export async function importCustomers(
           companyId: actor.companyId,
           name: customer.name,
           phone: customer.phone,
-          source: customer.source,
+          sourceId: customer.sourceId,
+          statusId: status.id,
           assigneeId: null,
         })),
       });

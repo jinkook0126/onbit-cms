@@ -1,33 +1,30 @@
 import { Label } from '~/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group';
-import { inflowSourceLabels } from '~/features/customers/type';
+import { useCatalogList } from '~/features/catalog/hooks/useCatalogList';
 import { fieldLabel } from '~/lib/styles';
 
 import type { JSX } from 'react';
-import type { InflowSource } from '~/features/customers/type';
 
 type CustomerSourceFilterProps = {
-  source: InflowSource | null;
-  onSourceChange: (source: InflowSource | null) => void;
+  sourceId: string | null;
+  onSourceChange: (sourceId: string | null) => void;
 };
 
-const sources = Object.keys(inflowSourceLabels) as InflowSource[];
 const allSources = 'all';
 
-function isListedSource(value: string): value is InflowSource {
-  return sources.some((item) => item === value);
-}
-
 export function CustomerSourceFilter({
-  source,
+  sourceId,
   onSourceChange,
 }: CustomerSourceFilterProps): JSX.Element {
+  const sources = useCatalogList('inflow-sources');
+  const items = sources.data?.items ?? [];
+
   function handleChange(value: string): void {
     if (value === allSources) {
       onSourceChange(null);
       return;
     }
-    if (isListedSource(value)) {
+    if (items.some((item) => item.id === value)) {
       onSourceChange(value);
     }
   }
@@ -39,7 +36,7 @@ export function CustomerSourceFilter({
       </p>
       <RadioGroup
         aria-labelledby="customer-source-label"
-        value={source ?? allSources}
+        value={sourceId ?? allSources}
         className="flex flex-wrap gap-x-4 gap-y-2"
         onValueChange={handleChange}
       >
@@ -47,14 +44,14 @@ export function CustomerSourceFilter({
           <RadioGroupItem id="customer-source-all" value={allSources} />
           전체
         </Label>
-        {sources.map((item) => (
+        {items.map((item) => (
           <Label
-            key={item}
-            htmlFor={`customer-source-${item}`}
+            key={item.id}
+            htmlFor={`customer-source-${item.id}`}
             className="gap-3 font-normal text-foreground"
           >
-            <RadioGroupItem id={`customer-source-${item}`} value={item} />
-            {inflowSourceLabels[item]}
+            <RadioGroupItem id={`customer-source-${item.id}`} value={item.id} />
+            {item.name}
           </Label>
         ))}
       </RadioGroup>

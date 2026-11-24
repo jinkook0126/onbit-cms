@@ -1,3 +1,10 @@
+import { DEFAULT_STATUS_CODE, RETAINED_STATUS_CODE } from '~/features/catalog/defaults';
+import {
+  catalogOptionRefSelect,
+  findCompanyOption,
+  findCompanyStatusByCode,
+  toOptionRef,
+} from '~/features/customers/api/customerCatalog.server';
 import { syncLatestNextContact } from '~/features/customers/api/customerConsultations.server';
 import { formatContactDate, parseContactDate } from '~/features/customers/api/customerDates.server';
 import { readTakenCustomerKeys } from '~/features/customers/api/customerIdentity.server';
@@ -19,20 +26,18 @@ import {
   MAX_INSTALLMENT_COUNT,
   MAX_RETAIN_AMOUNT,
   MIN_CUSTOMER_PHONE_LENGTH,
-  caseTypeLabels,
-  isCaseType,
+  isRetainedStatus,
 } from '~/features/customers/type';
 import { prisma } from '~/lib/db.server';
 import { errorCodeLabel, isMissingRecord, isUniqueConflict } from '~/lib/error.server';
 import { isUuid } from '~/lib/uuid.server';
 
+import type { CatalogOptionRef } from '~/features/catalog/type';
 import type {
   AccessibleCustomer,
   CustomerActor,
 } from '~/features/customers/api/customerScope.server';
 import type {
-  CaseType,
-  ConsultationStatus,
   CustomerAssigneeOption,
   CustomerDetail,
   CustomerProfileFieldErrors,
@@ -44,7 +49,6 @@ import type {
   CustomerSearchField,
   CustomerSortDirection,
   CustomerSortField,
-  InflowSource,
 } from '~/features/customers/type';
 import type { Prisma } from '../../../../generated/prisma/client';
 
@@ -61,21 +65,11 @@ export type CustomerListResult =
   | { status: 'not-found' }
   | { status: 'failed' };
 
-const consultationStatuses: readonly ConsultationStatus[] = [
-  'IN_CONSULTATION',
-  'CONSIDERING',
-  'ABSENT',
-  'REJECTED',
-  'RETAINED',
-];
-
-const inflowSources: readonly InflowSource[] = ['HOMEPAGE', 'NAVER', 'REFERRAL', 'PHONE', 'OTHER'];
-
 export type CustomerListQuery = {
   field: CustomerSearchField;
   keyword: string;
-  status: ConsultationStatus | null;
-  source: InflowSource | null;
+  statusId: string | null;
+  sourceId: string | null;
   from: string;
   to: string;
   sortField: CustomerSortField;
@@ -83,14 +77,6 @@ export type CustomerListQuery = {
   view: CustomerListView;
   page: number;
 };
-
-function isConsultationStatus(value: string): value is ConsultationStatus {
-  return consultationStatuses.some((status) => status === value);
-}
-
-function isInflowSource(value: string): value is InflowSource {
-  return inflowSources.some((source) => source === value);
-}
 
 function seoulDayStart(dateText: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText);
@@ -138,35 +124,30 @@ function toCustomerListItem(customer: {
   id: string;
   name: string;
   phone: string;
-  source: string;
-  status: string;
-  caseType: string | null;
+  source: CatalogOptionRef;
+  status: CatalogOptionRef;
+  caseType: CatalogOptionRef | null;
   createdAt: Date;
   nextContactOn: Date | null;
   firstProcessedOn: Date | null;
   assignee: { name: string } | null;
-  customerCase: { caseType: string; contractedOn: Date } | null;
+  customerCase: { caseType: CatalogOptionRef; contractedOn: Date } | null;
   consultations: { content: string; nextContactOn: Date | null }[];
   favorites: { userId: string }[];
-}): CustomerListItem | null {
-  if (!isInflowSource(customer.source) || !isConsultationStatus(customer.status)) {
-    return null;
-  }
+}): CustomerListItem {
   const latestConsultation = customer.consultations.at(0);
   const nextContactOn = latestConsultation
     ? latestConsultation.nextContactOn
     : customer.nextContactOn;
-  const caseType = isCaseType(customer.customerCase?.caseType)
-    ? customer.customerCase.caseType
-    : customer.caseType;
+  const caseType = customer.customerCase?.caseType ?? customer.caseType;
   return {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
-    source: customer.source,
-    status: customer.status,
+    source: toOptionRef(customer.source),
+    status: toOptionRef(customer.status),
     assigneeName: customer.assignee?.name ?? null,
-    caseType: isCaseType(caseType) ? caseType : null,
+    caseType: caseType ? toOptionRef(caseType) : null,
     registeredOn: seoulCalendarDay(customer.createdAt),
     nextContactOn: nextContactOn ? formatContactDate(nextContactOn) : null,
     firstProcessedOn: customer.firstProcessedOn
@@ -244,14 +225,14 @@ const customerListSelect = {
   id: true,
   name: true,
   phone: true,
-  source: true,
-  status: true,
-  caseType: true,
+  source: { select: catalogOptionRefSelect },
+  status: { select: catalogOptionRefSelect },
+  caseType: { select: catalogOptionRefSelect },
   createdAt: true,
   nextContactOn: true,
   firstProcessedOn: true,
   assignee: { select: { name: true } },
-  customerCase: { select: { caseType: true, contractedOn: true } },
+  customerCase: { select: { caseType: { select: catalogOptionRefSelect }, contractedOn: true } },
   consultations: {
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: 1,
@@ -259,7 +240,7 @@ const customerListSelect = {
   },
 } satisfies Prisma.CustomerSelect;
 
-function customerListSelectFor(userId: string): Prisma.CustomerSelect {
+function customerListSelectFor(userId: string) {
   return {
     ...customerListSelect,
     favorites: {
@@ -267,7 +248,7 @@ function customerListSelectFor(userId: string): Prisma.CustomerSelect {
       select: { userId: true },
       take: 1,
     },
-  };
+  } satisfies Prisma.CustomerSelect;
 }
 
 async function readScopedCustomers(
@@ -279,8 +260,8 @@ async function readScopedCustomers(
   const createdAt = registeredOnFilter(query.from, query.to);
   const where: Prisma.CustomerWhereInput = {
     ...visibility,
-    ...(query.status ? { status: query.status } : {}),
-    ...(query.source ? { source: query.source } : {}),
+    ...(query.statusId ? { statusId: query.statusId } : {}),
+    ...(query.sourceId ? { sourceId: query.sourceId } : {}),
     ...(createdAt === undefined ? {} : { createdAt }),
     ...(keyword ? keywordWhere(query.field, keyword) : {}),
     ...(query.view === 'favorites' ? { favorites: { some: { userId } } } : {}),
@@ -317,13 +298,7 @@ async function readScopedCustomers(
     }
   }
   const total = orderedIds.length;
-  const customers: CustomerListItem[] = [];
-  for (const row of orderedRows) {
-    const item = toCustomerListItem(row);
-    if (item) {
-      customers.push(item);
-    }
-  }
+  const customers = orderedRows.map(toCustomerListItem);
   return { customers, total };
 }
 
@@ -576,19 +551,38 @@ type ProfileDraft =
       ok: true;
       name: string;
       phone: string;
-      source: InflowSource;
+      source: CatalogOptionRef;
       assigneeId: string;
-      status: ConsultationStatus;
-      caseType: CaseType | null;
+      status: CatalogOptionRef;
+      caseType: CatalogOptionRef | null;
       firstProcessedOn: Date | null;
       contractedOn: Date | null;
       retainerFee: number | null;
     };
 
-function readProfileDraft(
+/** 수정 중인 고객에 이미 지정된 옵션. 비활성이어도 그대로 둘 수 있다. */
+type ProfileCurrent = {
+  sourceId: string;
+  status: CatalogOptionRef;
+  caseTypeIds: (string | null)[];
+};
+
+async function readProfileStatus(
+  companyId: string,
+  statusId: string,
+  current: ProfileCurrent | null,
+): Promise<CatalogOptionRef | null> {
+  if (current === null && statusId.trim().length < 1) {
+    return findCompanyStatusByCode(companyId, DEFAULT_STATUS_CODE);
+  }
+  return findCompanyOption('status', companyId, statusId, [current?.status.id ?? null]);
+}
+
+async function readProfileDraft(
+  companyId: string,
   submission: CustomerProfileSubmission,
-  lockRetained: boolean,
-): ProfileDraft {
+  current: ProfileCurrent | null,
+): Promise<ProfileDraft> {
   const fieldErrors: CustomerProfileFieldErrors = {};
   const name = submission.name.trim();
   const phone = submission.phone.trim();
@@ -609,18 +603,26 @@ function readProfileDraft(
     fieldErrors.phone = PHONE_INVALID_MESSAGE;
   }
 
-  if (!isInflowSource(submission.source)) {
-    fieldErrors.source = SOURCE_REQUIRED_MESSAGE;
+  const source = await findCompanyOption('source', companyId, submission.sourceId, [
+    current?.sourceId ?? null,
+  ]);
+  if (!source) {
+    fieldErrors.sourceId = SOURCE_REQUIRED_MESSAGE;
   }
   if (submission.assigneeId.trim().length < 1) {
     fieldErrors.assigneeId = ASSIGNEE_REQUIRED_MESSAGE;
   } else if (!isUuid(submission.assigneeId)) {
     fieldErrors.assigneeId = ASSIGNEE_INVALID_MESSAGE;
   }
-  if (!isConsultationStatus(submission.status)) {
-    fieldErrors.status = PROFILE_STATUS_INVALID_MESSAGE;
-  } else if (lockRetained && submission.status !== 'RETAINED') {
-    fieldErrors.status = PROFILE_STATUS_LOCKED_MESSAGE;
+  const status = await readProfileStatus(companyId, submission.statusId, current);
+  if (!status) {
+    fieldErrors.statusId = PROFILE_STATUS_INVALID_MESSAGE;
+  } else if (
+    current !== null &&
+    isRetainedStatus(current.status.code) &&
+    !isRetainedStatus(status.code)
+  ) {
+    fieldErrors.statusId = PROFILE_STATUS_LOCKED_MESSAGE;
   }
   if (
     submission.firstProcessedOn !== null &&
@@ -629,10 +631,19 @@ function readProfileDraft(
     fieldErrors.firstProcessedOn = FIRST_PROCESSED_INVALID_MESSAGE;
   }
 
-  const retained = submission.status === 'RETAINED';
+  const caseType =
+    submission.caseTypeId === null
+      ? null
+      : await findCompanyOption(
+          'caseType',
+          companyId,
+          submission.caseTypeId,
+          current?.caseTypeIds ?? [],
+        );
+  const retained = status !== null && isRetainedStatus(status.code);
   if (retained) {
-    if (!isCaseType(submission.caseType)) {
-      fieldErrors.caseType = PROFILE_CASE_TYPE_REQUIRED_MESSAGE;
+    if (!caseType) {
+      fieldErrors.caseTypeId = PROFILE_CASE_TYPE_REQUIRED_MESSAGE;
     }
     if (submission.contractedOn === null || submission.contractedOn.trim().length < 1) {
       fieldErrors.contractedOn = PROFILE_CONTRACTED_ON_REQUIRED_MESSAGE;
@@ -647,29 +658,24 @@ function readProfileDraft(
     if (feeError) {
       fieldErrors.retainerFee = feeError;
     }
-  } else if (submission.caseType !== null && !isCaseType(submission.caseType)) {
-    fieldErrors.caseType = PROFILE_CASE_TYPE_REQUIRED_MESSAGE;
+  } else if (submission.caseTypeId !== null && !caseType) {
+    fieldErrors.caseTypeId = PROFILE_CASE_TYPE_REQUIRED_MESSAGE;
   }
 
-  if (
-    Object.keys(fieldErrors).length > 0 ||
-    !isInflowSource(submission.source) ||
-    !isConsultationStatus(submission.status)
-  ) {
+  if (Object.keys(fieldErrors).length > 0 || !source || !status) {
     return { ok: false, fieldErrors };
   }
 
   const firstProcessedOn =
     submission.firstProcessedOn === null ? null : parseContactDate(submission.firstProcessedOn);
-  const caseType = isCaseType(submission.caseType) ? submission.caseType : null;
   if (!retained) {
     return {
       ok: true,
       name,
       phone,
-      source: submission.source,
+      source,
       assigneeId: submission.assigneeId,
-      status: submission.status,
+      status,
       caseType,
       firstProcessedOn,
       contractedOn: null,
@@ -686,9 +692,9 @@ function readProfileDraft(
     ok: true,
     name,
     phone,
-    source: submission.source,
+    source,
     assigneeId: submission.assigneeId,
-    status: 'RETAINED',
+    status,
     caseType,
     firstProcessedOn,
     contractedOn,
@@ -708,12 +714,12 @@ async function createRetainedCase(
   tx: Prisma.TransactionClient,
   customerId: string,
   actorId: string,
-  input: { contractedOn: Date; caseType: CaseType; retainerFee: number },
+  input: { contractedOn: Date; caseType: CatalogOptionRef; retainerFee: number },
 ): Promise<void> {
   await tx.customerCase.create({
     data: {
       customerId,
-      caseType: input.caseType,
+      caseTypeId: input.caseType.id,
       contractedOn: input.contractedOn,
       retainerFee: input.retainerFee,
       deposit: 0,
@@ -724,7 +730,7 @@ async function createRetainedCase(
   await tx.consultation.create({
     data: {
       customerId,
-      content: `수임전환 - ${caseTypeLabels[input.caseType]}`,
+      content: `수임전환 - ${input.caseType.name}`,
       nextContactOn: null,
       actorId,
     },
@@ -741,12 +747,11 @@ export async function createCustomer(
     return { result: actor, headers };
   }
 
-  const draft = readProfileDraft(submission, false);
-  if (!draft.ok) {
-    return { result: { status: 'invalid', fieldErrors: draft.fieldErrors }, headers };
-  }
-
   try {
+    const draft = await readProfileDraft(actor.companyId, submission, null);
+    if (!draft.ok) {
+      return { result: { status: 'invalid', fieldErrors: draft.fieldErrors }, headers };
+    }
     if (!(await assertAssignee(actor, draft.assigneeId))) {
       return {
         result: { status: 'invalid', fieldErrors: { assigneeId: ASSIGNEE_INVALID_MESSAGE } },
@@ -766,16 +771,16 @@ export async function createCustomer(
           companyId: actor.companyId,
           name: draft.name,
           phone: draft.phone,
-          source: draft.source,
+          sourceId: draft.source.id,
           assigneeId: draft.assigneeId,
-          status: draft.status,
-          caseType: draft.caseType,
+          statusId: draft.status.id,
+          caseTypeId: draft.caseType?.id ?? null,
           firstProcessedOn: draft.firstProcessedOn,
         },
         select: { id: true },
       });
       if (
-        draft.status === 'RETAINED' &&
+        isRetainedStatus(draft.status.code) &&
         draft.caseType &&
         draft.contractedOn &&
         draft.retainerFee !== null
@@ -810,10 +815,18 @@ export async function updateCustomerProfile(
 
   try {
     const customer = await readAccessibleCustomer(actor, customerId);
-    if (!customer || !isConsultationStatus(customer.status)) {
+    if (!customer) {
       return { result: { status: 'not-found' }, headers };
     }
-    const draft = readProfileDraft(submission, customer.status === 'RETAINED');
+    const currentCase = await prisma.customerCase.findUnique({
+      where: { customerId: customer.id },
+      select: { caseTypeId: true },
+    });
+    const draft = await readProfileDraft(actor.companyId, submission, {
+      sourceId: customer.sourceId,
+      status: customer.status,
+      caseTypeIds: [customer.caseTypeId, currentCase?.caseTypeId ?? null],
+    });
     if (!draft.ok) {
       return { result: { status: 'invalid', fieldErrors: draft.fieldErrors }, headers };
     }
@@ -839,37 +852,37 @@ export async function updateCustomerProfile(
     await prisma.$transaction(async (tx) => {
       const existingCase = await tx.customerCase.findUnique({
         where: { customerId: customer.id },
-        select: { caseType: true },
+        select: { caseType: { select: catalogOptionRefSelect } },
       });
       await tx.customer.update({
         where: { id: customer.id },
         data: {
           name: draft.name,
           phone: draft.phone,
-          source: draft.source,
+          sourceId: draft.source.id,
           assigneeId: draft.assigneeId,
-          status: draft.status,
-          caseType: draft.caseType,
+          statusId: draft.status.id,
+          caseTypeId: draft.caseType?.id ?? null,
           firstProcessedOn: draft.firstProcessedOn,
         },
       });
-      if (customer.status === 'RETAINED') {
+      if (isRetainedStatus(customer.status.code)) {
         if (!existingCase || !draft.caseType || !draft.contractedOn || draft.retainerFee === null) {
           return;
         }
         await tx.customerCase.update({
           where: { customerId: customer.id },
           data: {
-            caseType: draft.caseType,
+            caseTypeId: draft.caseType.id,
             contractedOn: draft.contractedOn,
             retainerFee: draft.retainerFee,
           },
         });
-        if (isCaseType(existingCase.caseType) && existingCase.caseType !== draft.caseType) {
+        if (existingCase.caseType.id !== draft.caseType.id) {
           await tx.consultation.create({
             data: {
               customerId: customer.id,
-              content: `사건 유형 변경 - ${caseTypeLabels[existingCase.caseType]} -> ${caseTypeLabels[draft.caseType]}`,
+              content: `사건 유형 변경 - ${existingCase.caseType.name} -> ${draft.caseType.name}`,
               nextContactOn: null,
               actorId: actor.userId,
             },
@@ -879,7 +892,7 @@ export async function updateCustomerProfile(
         return;
       }
       if (
-        draft.status === 'RETAINED' &&
+        isRetainedStatus(draft.status.code) &&
         draft.caseType &&
         draft.contractedOn &&
         draft.retainerFee !== null
@@ -957,7 +970,7 @@ export type CustomerDetailResult =
   | { status: 'failed' };
 
 export type CustomerStatusResult =
-  | { status: 'ok'; customerStatus: ConsultationStatus }
+  | { status: 'ok'; customerStatus: CatalogOptionRef }
   | { status: 'anonymous' }
   | { status: 'forbidden' }
   | { status: 'not-found' }
@@ -976,22 +989,19 @@ function seoulCalendarDay(value: Date): string {
 
 function toCustomerDetail(
   customer: AccessibleCustomer,
-  source: InflowSource,
+  source: CatalogOptionRef,
   registeredOn: string,
   assigneeId: string | null,
   firstProcessedOn: string | null,
-): Omit<CustomerDetail, 'caseType' | 'contractedOn' | 'retainerFee' | 'remainingRetainer'> | null {
-  if (!isConsultationStatus(customer.status)) {
-    return null;
-  }
+): Omit<CustomerDetail, 'caseType' | 'contractedOn' | 'retainerFee' | 'remainingRetainer'> {
   return {
     id: customer.id,
     name: customer.name,
     phone: customer.phone,
-    source,
+    source: toOptionRef(source),
     assigneeId,
     assigneeName: customer.assignee?.name ?? null,
-    status: customer.status,
+    status: toOptionRef(customer.status),
     registeredOn,
     firstProcessedOn,
   };
@@ -1014,17 +1024,21 @@ export async function readCustomer(
     const profile = await prisma.customer.findUnique({
       where: { id: customer.id },
       select: {
-        source: true,
+        source: { select: catalogOptionRefSelect },
         createdAt: true,
         assigneeId: true,
         firstProcessedOn: true,
-        caseType: true,
+        caseType: { select: catalogOptionRefSelect },
         customerCase: {
-          select: { caseType: true, contractedOn: true, retainerFee: true },
+          select: {
+            caseType: { select: catalogOptionRefSelect },
+            contractedOn: true,
+            retainerFee: true,
+          },
         },
       },
     });
-    if (!profile || !isInflowSource(profile.source)) {
+    if (!profile) {
       return { result: { status: 'not-found' }, headers };
     }
     const detail = toCustomerDetail(
@@ -1034,18 +1048,14 @@ export async function readCustomer(
       profile.assigneeId,
       profile.firstProcessedOn ? formatContactDate(profile.firstProcessedOn) : null,
     );
-    if (!detail) {
-      return { result: { status: 'not-found' }, headers };
-    }
-    const storedCaseType = isCaseType(profile.caseType) ? profile.caseType : null;
     const customerCase = profile.customerCase;
-    if (!customerCase || !isCaseType(customerCase.caseType)) {
+    if (!customerCase) {
       return {
         result: {
           status: 'ok',
           customer: {
             ...detail,
-            caseType: storedCaseType,
+            caseType: profile.caseType ? toOptionRef(profile.caseType) : null,
             contractedOn: null,
             retainerFee: null,
             remainingRetainer: null,
@@ -1064,7 +1074,7 @@ export async function readCustomer(
         status: 'ok',
         customer: {
           ...detail,
-          caseType: customerCase.caseType,
+          caseType: toOptionRef(customerCase.caseType),
           contractedOn: formatContactDate(customerCase.contractedOn),
           retainerFee: customerCase.retainerFee,
           remainingRetainer: Math.max(customerCase.retainerFee - netReceived, 0),
@@ -1081,7 +1091,7 @@ export async function readCustomer(
 export async function updateCustomerStatus(
   request: Request,
   customerId: string,
-  customerStatus: ConsultationStatus,
+  statusId: string,
 ): Promise<{ result: CustomerStatusResult; headers: Headers }> {
   const { actor, headers } = await resolveCustomerActor(request);
   if (actor.status !== 'ok') {
@@ -1090,28 +1100,26 @@ export async function updateCustomerStatus(
 
   try {
     const customer = await readAccessibleCustomer(actor, customerId);
-    if (!customer || !isConsultationStatus(customer.status)) {
+    if (!customer) {
       return { result: { status: 'not-found' }, headers };
     }
-    if (customer.status === customerStatus) {
-      return { result: { status: 'ok', customerStatus }, headers };
+    if (customer.status.id === statusId) {
+      return { result: { status: 'ok', customerStatus: toOptionRef(customer.status) }, headers };
     }
-    if (customer.status === 'RETAINED') {
+    if (isRetainedStatus(customer.status.code)) {
       return { result: { status: 'locked' }, headers };
     }
-    if (customerStatus === 'RETAINED') {
+    const target = await findCompanyOption('status', actor.companyId, statusId);
+    if (!target || isRetainedStatus(target.code)) {
       return { result: { status: 'invalid' }, headers };
     }
 
     const updated = await prisma.customer.update({
       where: { id: customer.id },
-      data: { status: customerStatus },
-      select: { status: true },
+      data: { statusId: target.id },
+      select: { status: { select: catalogOptionRefSelect } },
     });
-    if (!isConsultationStatus(updated.status)) {
-      return { result: { status: 'failed' }, headers };
-    }
-    return { result: { status: 'ok', customerStatus: updated.status }, headers };
+    return { result: { status: 'ok', customerStatus: toOptionRef(updated.status) }, headers };
   } catch (error) {
     if (isMissingRecord(error)) {
       return { result: { status: 'not-found' }, headers };
@@ -1122,17 +1130,18 @@ export async function updateCustomerStatus(
 }
 
 export type CustomerCaseTypeResult =
-  | { status: 'ok'; caseType: CaseType }
+  | { status: 'ok'; caseType: CatalogOptionRef }
   | { status: 'anonymous' }
   | { status: 'forbidden' }
   | { status: 'not-found' }
+  | { status: 'invalid' }
   | { status: 'missing-case' }
   | { status: 'failed' };
 
 export async function updateCustomerCaseType(
   request: Request,
   customerId: string,
-  caseType: CaseType,
+  caseTypeId: string,
 ): Promise<{ result: CustomerCaseTypeResult; headers: Headers }> {
   const { actor, headers } = await resolveCustomerActor(request);
   if (actor.status !== 'ok') {
@@ -1144,35 +1153,48 @@ export async function updateCustomerCaseType(
     if (!customer) {
       return { result: { status: 'not-found' }, headers };
     }
+    const currentCase = await prisma.customerCase.findUnique({
+      where: { customerId: customer.id },
+      select: { caseTypeId: true },
+    });
+    if (!currentCase) {
+      return { result: { status: 'missing-case' }, headers };
+    }
+    const caseType = await findCompanyOption('caseType', actor.companyId, caseTypeId, [
+      currentCase.caseTypeId,
+    ]);
+    if (!caseType) {
+      return { result: { status: 'invalid' }, headers };
+    }
     const outcome = await prisma.$transaction(async (tx) => {
       const existing = await tx.customerCase.findUnique({
         where: { customerId: customer.id },
-        select: { caseType: true },
+        select: { caseType: { select: catalogOptionRefSelect } },
       });
-      if (!existing || !isCaseType(existing.caseType)) {
+      if (!existing) {
         return { status: 'missing-case' } as const;
       }
-      if (existing.caseType === caseType) {
+      if (existing.caseType.id === caseType.id) {
         return { status: 'ok', caseType } as const;
       }
       const updated = await tx.customerCase.updateMany({
-        where: { customerId: customer.id, caseType: existing.caseType },
-        data: { caseType },
+        where: { customerId: customer.id, caseTypeId: existing.caseType.id },
+        data: { caseTypeId: caseType.id },
       });
       if (updated.count !== 1) {
         const current = await tx.customerCase.findUnique({
           where: { customerId: customer.id },
-          select: { caseType: true },
+          select: { caseType: { select: catalogOptionRefSelect } },
         });
-        if (!current || !isCaseType(current.caseType)) {
+        if (!current) {
           return { status: 'missing-case' } as const;
         }
-        return { status: 'ok', caseType: current.caseType } as const;
+        return { status: 'ok', caseType: toOptionRef(current.caseType) } as const;
       }
       await tx.consultation.create({
         data: {
           customerId: customer.id,
-          content: `사건 유형 변경 - ${caseTypeLabels[existing.caseType]} -> ${caseTypeLabels[caseType]}`,
+          content: `사건 유형 변경 - ${existing.caseType.name} -> ${caseType.name}`,
           nextContactOn: null,
           actorId: actor.userId,
         },
@@ -1200,7 +1222,7 @@ const FIRST_PAYMENT_REQUIRED_MESSAGE = '첫 회차 납부일을 선택하세요.
 const FIRST_PAYMENT_INVALID_MESSAGE = '첫 회차 납부일은 올바른 날짜로 입력하세요.';
 
 export type CustomerRetainResult =
-  | { status: 'ok'; customerStatus: 'RETAINED' }
+  | { status: 'ok'; customerStatus: CatalogOptionRef }
   | { status: 'anonymous' }
   | { status: 'forbidden' }
   | { status: 'not-found' }
@@ -1211,7 +1233,7 @@ type RetainWrite =
   | {
       ok: true;
       contractedOn: Date;
-      caseType: CaseType;
+      caseTypeId: string;
       retainerFee: number;
       deposit: number;
       installmentCount: number;
@@ -1253,8 +1275,8 @@ function readRetainWrite(submission: CustomerRetainSubmission): RetainWrite {
   if (contractedOnError) {
     fieldErrors.contractedOn = contractedOnError;
   }
-  if (!isCaseType(submission.caseType)) {
-    fieldErrors.caseType = CASE_TYPE_REQUIRED_MESSAGE;
+  if (!isUuid(submission.caseTypeId)) {
+    fieldErrors.caseTypeId = CASE_TYPE_REQUIRED_MESSAGE;
   }
   const retainerFeeError = moneyFieldError(
     submission.retainerFee,
@@ -1306,7 +1328,6 @@ function readRetainWrite(submission: CustomerRetainSubmission): RetainWrite {
   if (
     contractedOn === null ||
     firstPaymentOn === null ||
-    !isCaseType(submission.caseType) ||
     !Number.isSafeInteger(retainerFee) ||
     !Number.isSafeInteger(deposit) ||
     !Number.isSafeInteger(installmentCount)
@@ -1316,7 +1337,7 @@ function readRetainWrite(submission: CustomerRetainSubmission): RetainWrite {
   return {
     ok: true,
     contractedOn,
-    caseType: submission.caseType,
+    caseTypeId: submission.caseTypeId,
     retainerFee,
     deposit,
     installmentCount,
@@ -1336,22 +1357,34 @@ export async function retainCustomer(
 
   try {
     const customer = await readAccessibleCustomer(actor, customerId);
-    if (!customer || !isConsultationStatus(customer.status)) {
+    if (!customer) {
       return { result: { status: 'not-found' }, headers };
     }
-    if (customer.status === 'RETAINED') {
-      return { result: { status: 'ok', customerStatus: 'RETAINED' }, headers };
+    if (isRetainedStatus(customer.status.code)) {
+      return { result: { status: 'ok', customerStatus: toOptionRef(customer.status) }, headers };
     }
 
     const input = readRetainWrite(submission);
     if (!input.ok) {
       return { result: { status: 'invalid', fieldErrors: input.fieldErrors }, headers };
     }
+    const caseType = await findCompanyOption('caseType', actor.companyId, input.caseTypeId);
+    if (!caseType) {
+      return {
+        result: { status: 'invalid', fieldErrors: { caseTypeId: CASE_TYPE_REQUIRED_MESSAGE } },
+        headers,
+      };
+    }
+    const retainedStatus = await findCompanyStatusByCode(actor.companyId, RETAINED_STATUS_CODE);
+    if (!retainedStatus) {
+      console.error('회사의 수임 상담 상태를 찾지 못했습니다.');
+      return { result: { status: 'failed' }, headers };
+    }
 
     await prisma.$transaction(async (tx) => {
       const updated = await tx.customer.updateMany({
-        where: { id: customer.id, status: { not: 'RETAINED' } },
-        data: { status: 'RETAINED' },
+        where: { id: customer.id, statusId: { not: retainedStatus.id } },
+        data: { statusId: retainedStatus.id },
       });
       if (updated.count !== 1) {
         return;
@@ -1360,7 +1393,7 @@ export async function retainCustomer(
         data: {
           customerId: customer.id,
           contractedOn: input.contractedOn,
-          caseType: input.caseType,
+          caseTypeId: caseType.id,
           retainerFee: input.retainerFee,
           deposit: input.deposit,
           installmentCount: input.installmentCount,
@@ -1377,14 +1410,14 @@ export async function retainCustomer(
       await tx.consultation.create({
         data: {
           customerId: customer.id,
-          content: `수임전환 - ${caseTypeLabels[input.caseType]}`,
+          content: `수임전환 - ${caseType.name}`,
           nextContactOn: null,
           actorId: actor.userId,
         },
       });
       await syncLatestNextContact(tx, customer.id);
     });
-    return { result: { status: 'ok', customerStatus: 'RETAINED' }, headers };
+    return { result: { status: 'ok', customerStatus: toOptionRef(retainedStatus) }, headers };
   } catch (error) {
     if (isMissingRecord(error)) {
       return { result: { status: 'not-found' }, headers };

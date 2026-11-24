@@ -2,13 +2,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { useCatalogList } from '~/features/catalog/hooks/useCatalogList';
 import { requestCustomerRetain } from '~/features/customers/api/customerApi';
 import { customerQueryKeys, replaceCustomerDetail } from '~/features/customers/api/customerQuery';
-import { isCaseType } from '~/features/customers/type';
+import { toOptionRefs } from '~/features/customers/catalogOption';
+import { isRetainedStatus } from '~/features/customers/type';
 
 import type { ChangeEvent } from 'react';
+import type { CatalogOptionRef } from '~/features/catalog/type';
 import type {
-  CaseType,
   CustomerRetainFieldErrors,
   CustomerRetainSubmission,
 } from '~/features/customers/type';
@@ -16,7 +18,8 @@ import type {
 type RetainCustomerState = {
   open: boolean;
   contractedOn: string;
-  caseType: CaseType | '';
+  caseTypeId: string;
+  caseTypeOptions: CatalogOptionRef[];
   retainerFee: string;
   deposit: string;
   installmentCount: string;
@@ -27,7 +30,7 @@ type RetainCustomerState = {
   openDrawer: () => void;
   closeDrawer: () => void;
   changeContractedOn: (value: string) => void;
-  changeCaseType: (caseType: CaseType) => void;
+  changeCaseType: (caseTypeId: string) => void;
   changeRetainerFee: (event: ChangeEvent<HTMLInputElement>) => void;
   changeDeposit: (event: ChangeEvent<HTMLInputElement>) => void;
   changeInstallmentCount: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -48,21 +51,28 @@ export function useRetainCustomer(customerId: string): RetainCustomerState {
   const submitLock = useRef(false);
   const [open, setOpen] = useState(false);
   const [contractedOn, setContractedOn] = useState('');
-  const [caseType, setCaseType] = useState<CaseType | ''>('');
+  const [caseTypeId, setCaseTypeId] = useState('');
   const [retainerFee, setRetainerFee] = useState('');
   const [deposit, setDeposit] = useState('');
   const [installmentCount, setInstallmentCount] = useState('');
   const [firstPaymentOn, setFirstPaymentOn] = useState('');
+  const caseTypes = useCatalogList('case-types', true);
+  const caseTypeOptions = toOptionRefs(caseTypes.data?.items, null);
   const mutation = useMutation({
     mutationFn: (submission: CustomerRetainSubmission) =>
       requestCustomerRetain(customerId, submission),
     onSuccess: (response, submission) => {
-      if (response.status !== 'RETAINED' || response.fieldErrors || response.formError) {
+      if (
+        response.status === undefined ||
+        !isRetainedStatus(response.status.code) ||
+        response.fieldErrors ||
+        response.formError
+      ) {
         return;
       }
       replaceCustomerDetail(queryClient, customerId, {
-        status: 'RETAINED',
-        caseType: isCaseType(submission.caseType) ? submission.caseType : null,
+        status: response.status,
+        caseType: caseTypeOptions.find((option) => option.id === submission.caseTypeId) ?? null,
       });
       void queryClient.invalidateQueries({ queryKey: customerQueryKeys.lists() });
       void queryClient.invalidateQueries({
@@ -85,7 +95,7 @@ export function useRetainCustomer(customerId: string): RetainCustomerState {
 
   function resetForm(): void {
     setContractedOn('');
-    setCaseType('');
+    setCaseTypeId('');
     setRetainerFee('');
     setDeposit('');
     setInstallmentCount('');
@@ -113,7 +123,7 @@ export function useRetainCustomer(customerId: string): RetainCustomerState {
     submitLock.current = true;
     mutation.mutate({
       contractedOn,
-      caseType,
+      caseTypeId,
       retainerFee,
       deposit,
       installmentCount,
@@ -124,7 +134,8 @@ export function useRetainCustomer(customerId: string): RetainCustomerState {
   return {
     open,
     contractedOn,
-    caseType,
+    caseTypeId,
+    caseTypeOptions,
     retainerFee,
     deposit,
     installmentCount,
@@ -135,7 +146,7 @@ export function useRetainCustomer(customerId: string): RetainCustomerState {
     openDrawer,
     closeDrawer,
     changeContractedOn: setContractedOn,
-    changeCaseType: setCaseType,
+    changeCaseType: setCaseTypeId,
     changeRetainerFee: (event) => {
       setRetainerFee(digitsOnly(event.target.value, moneyDigitLimit));
     },

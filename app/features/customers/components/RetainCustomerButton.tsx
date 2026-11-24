@@ -21,17 +21,9 @@ import {
 } from '~/components/ui/select';
 import { CustomerNextContactField } from '~/features/customers/components/CustomerNextContactField';
 import { useRetainCustomer } from '~/features/customers/hooks/useRetainCustomer';
-import { caseTypeLabels } from '~/features/customers/type';
 import { fieldLabel, sectionDescription } from '~/lib/styles';
 
 import type { JSX, SubmitEvent } from 'react';
-import type { CaseType } from '~/features/customers/type';
-
-const caseTypes = Object.keys(caseTypeLabels) as CaseType[];
-
-function isCaseType(value: string): value is CaseType {
-  return caseTypes.some((caseType) => caseType === value);
-}
 
 type OutsideEvent = {
   preventDefault: () => void;
@@ -52,12 +44,6 @@ export function RetainCustomerButton({ customerId }: RetainCustomerButtonProps):
   function handleOpenChange(nextOpen: boolean): void {
     if (!nextOpen) {
       form.closeDrawer();
-    }
-  }
-
-  function handleCaseTypeChange(value: string): void {
-    if (isCaseType(value)) {
-      form.changeCaseType(value);
     }
   }
 
@@ -106,31 +92,31 @@ export function RetainCustomerButton({ customerId }: RetainCustomerButtonProps):
                   사건유형
                 </Label>
                 <Select
-                  value={form.caseType === '' ? undefined : form.caseType}
+                  value={form.caseTypeId === '' ? undefined : form.caseTypeId}
                   disabled={form.isSubmitting}
-                  onValueChange={handleCaseTypeChange}
+                  onValueChange={form.changeCaseType}
                 >
                   <SelectTrigger
                     id="retain-case-type"
                     className="w-full"
-                    aria-invalid={form.fieldErrors?.caseType ? true : undefined}
+                    aria-invalid={form.fieldErrors?.caseTypeId ? true : undefined}
                     aria-describedby={
-                      form.fieldErrors?.caseType ? 'retain-case-type-error' : undefined
+                      form.fieldErrors?.caseTypeId ? 'retain-case-type-error' : undefined
                     }
                   >
                     <SelectValue placeholder="사건유형을 선택하세요" />
                   </SelectTrigger>
                   <SelectContent>
-                    {caseTypes.map((caseType) => (
-                      <SelectItem key={caseType} value={caseType}>
-                        {caseTypeLabels[caseType]}
+                    {form.caseTypeOptions.map((caseType) => (
+                      <SelectItem key={caseType.id} value={caseType.id}>
+                        {caseType.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {form.fieldErrors?.caseType ? (
+                {form.fieldErrors?.caseTypeId ? (
                   <p id="retain-case-type-error" className="text-sm text-destructive">
-                    {form.fieldErrors.caseType}
+                    {form.fieldErrors.caseTypeId}
                   </p>
                 ) : null}
               </div>
